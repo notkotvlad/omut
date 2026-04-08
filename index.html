@@ -216,16 +216,16 @@
     .давл-7дней-метка { display: flex; justify-content: space-between; margin-top: 4px; }
     .давл-7дней-метка span { font-size: 9px; color: var(--text-3); }
     .давл-7дней-нзв { display: flex; justify-content: space-between; margin-top: 5px; }
-    .давл-7дней-нзв span { font-size: 9px; color: var(--text-3); text-align: center; flex: 1; }
+    .давл-7дней-нзв span { font-size: 9px; color: var(--text-3); text-align: center; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; }
 
-    .лд-стр { display: flex; align-items: center; gap: 6px; padding: 7px 10px; border-radius: 8px; border: 1px solid transparent; margin-bottom: 4px; transition: background 0.15s; overflow: hidden; }
+    .лд-стр { display: flex; align-items: center; gap: 5px; padding: 7px 10px; border-radius: 8px; border: 1px solid transparent; margin-bottom: 4px; transition: background 0.15s; overflow: hidden; }
     .лд-стр.лучший { border-color: var(--green); background: rgba(0,214,143,0.06); }
     .лд-дата { font-size: 11px; color: var(--text-2); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .лд-погода { font-size: 14px; width: 20px; text-align: center; flex-shrink: 0; }
-    .лд-темп { font-size: 11px; color: var(--text-1); width: 32px; flex-shrink: 0; text-align: right; }
-    .лд-давл { font-size: 11px; color: var(--text-3); width: 22px; flex-shrink: 0; text-align: center; }
-    .лд-пцт { font-size: 12px; font-weight: 700; width: 36px; text-align: right; flex-shrink: 0; white-space: nowrap; }
-    .лд-бар-трек { width: 36px; flex-shrink: 0; height: 4px; background: var(--bg-page); border-radius: 2px; overflow: hidden; }
+    .лд-погода { font-size: 13px; width: 18px; text-align: center; flex-shrink: 0; }
+    .лд-темп { font-size: 11px; color: var(--text-1); width: 26px; flex-shrink: 0; text-align: right; }
+    .лд-давл { font-size: 11px; color: var(--text-3); width: 16px; flex-shrink: 0; text-align: center; }
+    .лд-пцт { font-size: 12px; font-weight: 700; width: 32px; text-align: right; flex-shrink: 0; white-space: nowrap; }
+    .лд-бар-трек { width: 28px; flex-shrink: 0; height: 4px; background: var(--bg-page); border-radius: 2px; overflow: hidden; }
     .лд-бар-зап { height: 100%; border-radius: 2px; }
 
     .модал-оверлей {
@@ -387,11 +387,30 @@
     .бонусы-сетка { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 8px; }
     .бонус-ряд { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--text-2); }
 
+    /* ── Дата снимка ── */
+    #снимок-дата {
+      position: absolute;
+      bottom: 24px;
+      left: 14px;
+      z-index: 1000;
+      background: rgba(15,20,25,0.82);
+      color: rgba(232,240,254,0.5);
+      font-size: 10px;
+      font-family: 'Inter', sans-serif;
+      padding: 3px 9px;
+      border-radius: 5px;
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255,255,255,0.07);
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+
     @media (max-width: 1024px) {
       #app { flex-direction: column; }
       #панель { width: 100%; }
       #карта-обёртка { flex: none; height: 40vh; }
       #рыба-табы { top: auto; bottom: 14px; left: 14px; right: 14px; max-width: none; justify-content: flex-start; }
+      #снимок-дата { bottom: 48px; }
     }
     @media (max-width: 480px) {
       #рыба-табы { padding: 5px 7px; gap: 4px; }
@@ -447,12 +466,12 @@
     .ветер-бар { width: 100%; border-radius: 3px 3px 0 0; min-height: 3px; }
     .ветер-бар-стрел { font-size: 9px; line-height: 1; flex-shrink: 0; }
     .ветер-7дней-нзв { display: flex; }
-    .ветер-7дней-нзв span { font-size: 9px; color: var(--text-3); text-align: center; flex: 1; }
+    .ветер-7дней-нзв span { font-size: 9px; color: var(--text-3); text-align: center; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; }
     .ветер-7дней-метка { display: flex; justify-content: space-between; margin-top: 3px; }
     .ветер-7дней-метка span { font-size: 9px; color: var(--text-3); }
 
     /* ── Лучший день — колонка ветра ── */
-    .лд-ветер { font-size: 11px; color: var(--text-3); width: 36px; flex-shrink: 0; text-align: center; }
+    .лд-ветер { font-size: 11px; color: var(--text-3); width: 28px; flex-shrink: 0; text-align: center; }
   </style>
 </head>
 <body>
@@ -461,6 +480,7 @@
       <div id="map"></div>
       <button id="fab-добавить" title="Добавить место">+ Добавить место</button>
       <div id="рыба-табы"></div>
+      <div id="снимок-дата">📡 Esri World Imagery</div>
       <div id="подсказка-добавления">🎯 Кликните на карту, чтобы поставить метку</div>
       <div id="подсказка-пусто">У вас пока нет мест.<br>Нажмите «+ Добавить место», чтобы начать</div>
     </div>
@@ -1629,9 +1649,9 @@ function отрисоватьДавление() {
           ? `${(j * шагX).toFixed(1)},${(H - ((v - мин) / диап) * H * 0.85 - H * 0.075).toFixed(1)}`
           : null).filter(Boolean);
         const зап = [...точки, `${W},${H}`, `0,${H}`].join(' ');
-        const нзвДней = дни7.map((д, i) => {
+        const нзвДней = дни7.map(д => {
           const дата = new Date(д + 'T12:00:00+05:00');
-          return i === 0 ? 'Сег' : ДНИРУ[дата.getDay()];
+          return { нзв: ДНИРУ[дата.getDay()], числоМес: `${дата.getDate()}.${String(дата.getMonth()+1).padStart(2,'0')}` };
         });
         const значения = средние.map(v => v != null ? Math.round(v) : '—');
         // Точки на линии с подписями
@@ -1649,7 +1669,7 @@ function отрисоватьДавление() {
               <polyline points="${точки.join(' ')}" fill="none" stroke="${давлЦвет}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
               ${кружки}
             </svg>
-            <div class="давл-7дней-нзв">${нзвДней.map((н, i) => `<span style="${i===0 ? 'color:var(--green);font-weight:700' : ''}">${н}</span>`).join('')}</div>
+            <div class="давл-7дней-нзв">${нзвДней.map((н, i) => `<span style="${i===0 ? 'color:var(--green);font-weight:700' : ''}"><span>${н.нзв}</span><span style="color:var(--text-3);font-weight:400">${н.числоМес}</span></span>`).join('')}</div>
             <div class="давл-7дней-метка"><span>${Math.round(мин + 2)} гПа</span><span>прогноз 7 дней</span><span>${Math.round(макс - 2)} гПа</span></div>
           </div>`;
       }
@@ -1739,9 +1759,9 @@ function отрисоватьВетер() {
     const дни7 = п.daily.time.slice(старт, старт + 7);
     if (wind7.length >= 2) {
       const макс7 = Math.max(...wind7, 1);
-      const нзвДней = дни7.map((д, i) => {
+      const нзвДней = дни7.map(д => {
         const дата = new Date(д + 'T12:00:00+05:00');
-        return i === 0 ? 'Сег' : ДНИРУ[дата.getDay()];
+        return { нзв: ДНИРУ[дата.getDay()], числоМес: `${дата.getDate()}.${String(дата.getMonth()+1).padStart(2,'0')}` };
       });
       const бары = wind7.map((v, j) => {
         const высота = Math.max(4, Math.round((v / макс7) * 48));
@@ -1756,7 +1776,7 @@ function отрисоватьВетер() {
       график7Дней = `
         <div class="ветер-7дней">
           <div class="ветер-бары">${бары}</div>
-          <div class="ветер-7дней-нзв">${нзвДней.map((н, i) => `<span style="${i===0 ? 'color:var(--green);font-weight:700' : ''}">${н}</span>`).join('')}</div>
+          <div class="ветер-7дней-нзв">${нзвДней.map((н, i) => `<span style="${i===0 ? 'color:var(--green);font-weight:700' : ''}"><span>${н.нзв}</span><span style="color:var(--text-3);font-weight:400">${н.числоМес}</span></span>`).join('')}</div>
           <div class="ветер-7дней-метка"><span>0 м/с</span><span>прогноз 7 дней</span><span>${Math.round(макс7)} м/с</span></div>
         </div>`;
     }
@@ -1812,17 +1832,18 @@ function отрисоватьЛучшийДень() {
     const шанс = рассчитатьКлёвДень(выбРыба, { трендДавл, темпМакс: daily.temperature_2m_max[старт + i], ветер: ветерМс, осадки: daily.precipitation_sum[старт + i] || 0, датаСтр }, выбМесто.waterType);
     const ветерНапр = (daily.winddirection_10m_dominant || [])[старт + i];
     const ВЕТ_СТРЕЛКИ = ['↑','↗','→','↘','↓','↙','←','↖'];
-    const ветерСтр = Math.round(ветерМс) + (ветерНапр != null ? ВЕТ_СТРЕЛКИ[Math.round(ветерНапр / 45) % 8] : '') + ' м/с';
+    const ветерСтр = Math.round(ветерМс) + (ветерНапр != null ? ВЕТ_СТРЕЛКИ[Math.round(ветерНапр / 45) % 8] : '');
     return { датаСтр, шанс, код: (daily.weather_code || daily.weathercode || [])[старт + i], темп: daily.temperature_2m_max[старт + i], трендДавл, ветерСтр, давлСимв: { стабильное: '→', падает: '↓', резко_падает: '↓↓', растёт: '↑', резко_растёт: '↑↑' }[трендДавл] };
   });
   const максШанс = Math.max(...прогнозы.map(д => д.шанс));
+  const МЕС = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
   const строки = прогнозы.map((д, i) => {
     const лучший = д.шанс === максШанс;
     const дата = new Date(д.датаСтр + 'T12:00:00+05:00');
-    const нзв = i === 0 ? 'Сег' : ДНИРУ[дата.getDay()];
+    const нзв = ДНИРУ[дата.getDay()];
     const деньЧисло = дата.getDate();
-    const мес = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'][дата.getMonth()];
-    const датаТекст = i === 0 ? 'Сегодня' : `${нзв} ${деньЧисло} ${мес}`;
+    const мес = МЕС[дата.getMonth()];
+    const датаТекст = `${нзв} ${деньЧисло} ${мес}`;
     const цвет = цветПцт(д.шанс);
     return `<div class="лд-стр ${лучший ? 'лучший' : ''}"><span class="лд-дата">${датаТекст}${лучший ? ' ⭐' : ''}</span><span class="лд-погода">${погодаЭмодзи(д.код)}</span><span class="лд-темп">+${Math.round(д.темп)}°</span><span class="лд-давл">${д.давлСимв}</span><span class="лд-ветер">${д.ветерСтр}</span><span class="лд-пцт" style="color:${цвет}">${д.шанс}%</span><div class="лд-бар-трек"><div class="лд-бар-зап" style="width:${д.шанс}%;background:${цвет}"></div></div></div>`;
   }).join('');
@@ -1852,7 +1873,7 @@ function отрисоватьНеделю() {
 
   const колонки = дни.map((дата, i) => {
     const д = new Date(дата + 'T12:00:00+05:00');
-    const нзв = i === 0 ? 'Сег' : ДНИ_РУ[д.getDay()];
+    const нзв = ДНИ_РУ[д.getDay()];
     const осПр = ос[i] != null ? ос[i] : null;
     const осЦв = осПр == null ? 'color:var(--text-3)' : осПр >= 50 ? 'color:var(--blue)' : осПр >= 30 ? 'color:#80b0f0' : 'color:var(--text-3)';
     const осТекст = осПр != null ? `${осПр}%` : '—';
@@ -1865,6 +1886,61 @@ function отрисоватьНеделю() {
     </div>`;
   }).join('');
   показатьСАнимацией(эл, `<div class="неделя-сетка">${колонки}</div>`);
+}
+
+// ============ ДАТА СПУТНИКОВОГО СНИМКА ============
+let _снимокТаймер = null;
+async function обновитьДатуСнимка() {
+  const эл = document.getElementById('снимок-дата');
+  if (!эл || !карта) return;
+  const b = карта.getBounds();
+  const геом = `${b.getWest().toFixed(4)},${b.getSouth().toFixed(4)},${b.getEast().toFixed(4)},${b.getNorth().toFixed(4)}`;
+  const url = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/0/query?` +
+    `where=1%3D1&geometry=${encodeURIComponent(геом)}&geometryType=esriGeometryEnvelope` +
+    `&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=SRC_DATE2%2CNICE_DESC` +
+    `&returnGeometry=false&resultRecordCount=5&f=json`;
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('API error');
+    const д = await r.json();
+    const фичи = д.features || [];
+    if (!фичи.length) { эл.textContent = '📡 Esri World Imagery'; return; }
+    // SRC_DATE2 может быть числом-датой вида 20220315 или timestamp в мс
+    let лучшаяДата = null;
+    let лучшийИсточник = '';
+    фичи.forEach(ф => {
+      const raw = ф.attributes?.SRC_DATE2;
+      const nice = ф.attributes?.NICE_DESC || '';
+      if (!raw) return;
+      let dt;
+      if (raw > 1e12) {
+        dt = new Date(raw); // timestamp в мс
+      } else if (raw > 1e7) {
+        const s = raw.toString();
+        dt = new Date(`${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`);
+      }
+      if (dt && (!лучшаяДата || dt > лучшаяДата)) {
+        лучшаяДата = dt;
+        лучшийИсточник = nice;
+      }
+    });
+    if (лучшаяДата && !isNaN(лучшаяДата)) {
+      const МЕСЯЦЫ = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+      const мес = МЕСЯЦЫ[лучшаяДата.getMonth()];
+      const год = лучшаяДата.getFullYear();
+      const источник = лучшийИсточник ? ` · ${лучшийИсточник.slice(0, 20)}` : '';
+      эл.textContent = `📡 Снимок: ${мес} ${год}${источник}`;
+    } else {
+      эл.textContent = '📡 Esri World Imagery';
+    }
+  } catch {
+    эл.textContent = '📡 Esri World Imagery';
+  }
+}
+
+function запланироватьОбновлениеСнимка() {
+  clearTimeout(_снимокТаймер);
+  _снимокТаймер = setTimeout(обновитьДатуСнимка, 800);
 }
 
 // ============ FAB И РЕЖИМ ДОБАВЛЕНИЯ ============
@@ -1925,6 +2001,10 @@ function инициализировать() {
 
   загрузитьПогоду();
   setInterval(загрузитьПогоду, 30 * 60000);
+
+  // Дата спутникового снимка
+  карта.on('moveend zoomend', запланироватьОбновлениеСнимка);
+  обновитьДатуСнимка();
 }
 
 инициализировать();
