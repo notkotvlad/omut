@@ -1,0 +1,1764 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Omut — прогноз клёва</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    :root {
+      --bg-page:   #0f1419;
+      --bg-panel:  #1a2332;
+      --bg-card:   #1e2a3a;
+      --bg-hover:  #243347;
+      --border:    rgba(255,255,255,0.08);
+      --border-md: rgba(255,255,255,0.12);
+      --green:   #00d68f;
+      --yellow:  #f0a500;
+      --red:     #ff4d4d;
+      --blue:    #4da6ff;
+      --text-1:  #e8f0fe;
+      --text-2:  rgba(232,240,254,0.55);
+      --text-3:  rgba(232,240,254,0.30);
+      --r-main: 16px;
+      --r-card: 12px;
+      --r-btn:  24px;
+      --r-mark: 20px;
+      --gap-outer: 16px;
+      --gap-map:   16px;
+      --gap-card:  12px;
+      --pad-card:  20px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: 'Inter', system-ui, -apple-system, sans-serif; background: var(--bg-page); color: var(--text-1); overflow: hidden; }
+
+    #app { display: flex; gap: var(--gap-map); height: 100vh; padding: var(--gap-outer); }
+    #карта-обёртка { flex: 1; min-width: 0; border-radius: var(--r-main); overflow: hidden; position: relative; }
+    #map { width: 100%; height: 100%; }
+
+    #панель { width: 320px; flex-shrink: 0; border-radius: var(--r-main); background: var(--bg-panel); border: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+    #шапка-панели { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text-3); font-weight: 500; }
+    #апи-баннер { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: rgba(240,165,0,0.1); border-bottom: 1px solid rgba(240,165,0,0.2); font-size: 12px; color: #f0a500; }
+    #апи-баннер button { margin-left: auto; padding: 3px 10px; font-size: 11px; background: rgba(240,165,0,0.15); border: 1px solid rgba(240,165,0,0.3); border-radius: 5px; color: #f0a500; cursor: pointer; white-space: nowrap; }
+    #апи-баннер button:hover { background: rgba(240,165,0,0.25); }
+    #время-текст { flex: 1; }
+    #панель-скролл { flex: 1; overflow-y: auto; padding: var(--gap-card); }
+
+    .карточка {
+      background: var(--bg-card);
+      border: 1px solid var(--border-md);
+      border-radius: var(--r-card);
+      padding: var(--pad-card);
+      margin-bottom: var(--gap-card);
+    }
+    .карт-загол { font-size: 12px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+
+    .fish-btn { background: var(--bg-card); border: 1px solid var(--border-md); border-radius: var(--r-btn); color: var(--text-2); padding: 8px 14px; margin-right: 6px; margin-bottom: 6px; font-size: 12px; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+    .fish-btn:hover { background: var(--bg-hover); color: var(--text-1); }
+    .fish-btn.active { background: var(--green); color: #0a1a0f; border-color: var(--green); }
+
+    .прог-пусто { text-align: center; padding: 24px 12px; color: var(--text-3); font-size: 13px; }
+    .пусто-иконка { display: block; font-size: 32px; margin-bottom: 8px; }
+
+    .прог-блок { margin-bottom: 16px; }
+    .прог-назв { font-size: 12px; color: var(--text-2); margin-bottom: 4px; }
+    .прог-значение { font-size: 18px; font-weight: 700; color: var(--text-1); }
+
+    .факт-ряд { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+    .факт-ряд:last-child { border-bottom: none; }
+    .факт-назв { color: var(--text-2); }
+    .факт-знач { display: flex; align-items: center; gap: 6px; }
+    .факт-бар { width: 60px; height: 4px; background: var(--bg-page); border-radius: 2px; overflow: hidden; }
+    .факт-бар-зап { height: 100%; border-radius: 2px; }
+
+    .совет-блок { background: rgba(0, 214, 143, 0.06); border: 1px solid rgba(0, 214, 143, 0.2); border-radius: var(--r-card); padding: 10px; margin-top: 12px; font-size: 11px; line-height: 1.6; color: var(--text-2); }
+
+    .неделя-сетка { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+    .день-кол { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; background: var(--bg-page); border-radius: 8px; font-size: 10px; }
+    .день-назв { font-weight: 600; color: var(--text-3); }
+    .день-эмодзи { font-size: 16px; }
+    .день-темп { font-size: 11px; font-weight: 700; }
+
+    .давл-карточка { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .давл-ряд { display: flex; align-items: center; gap: 10px; }
+    .давл-число { font-size: 20px; font-weight: 700; min-width: 40px; }
+    .давл-тренд { font-size: 14px; flex: 1; }
+
+    .скелет { background: var(--bg-hover); border-radius: 6px; animation: пульс 1.6s ease-in-out infinite; }
+    @keyframes пульс { 0%,100% { opacity:0.35; } 50% { opacity:0.6; } }
+    @keyframes появись { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+    .появление { animation: появись 0.3s ease forwards; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Прогноз клёва ── */
+    .прог-шапка { margin-bottom: 14px; }
+    .кеш-чип { display: inline-flex; align-items: center; gap: 4px; margin-top: 5px; padding: 2px 8px; background: rgba(240,165,0,0.12); border: 1px solid rgba(240,165,0,0.25); border-radius: 10px; font-size: 10px; color: #f0a500; font-weight: 500; }
+    .источник-бейдж { display: inline-flex; align-items: center; padding: 1px 6px; border-radius: 8px; font-size: 9px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; transition: opacity 0.2s; }
+    .источник-бейдж.open-meteo { color: #00d68f; background: rgba(0,214,143,0.10); border: 1px solid rgba(0,214,143,0.25); }
+    .источник-бейдж.met-no { color: #4da6ff; background: rgba(77,166,255,0.10); border: 1px solid rgba(77,166,255,0.25); }
+    .прог-локация { font-size: 15px; font-weight: 500; color: var(--text-1); }
+    .прог-рыба    { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+    .прог-пцт { font-size: 32px; font-weight: 700; line-height: 1; text-align: center; margin-bottom: 10px; }
+    .прог-бар-трек { height: 6px; background: var(--bg-page); border-radius: 3px; overflow: hidden; margin-bottom: 10px; }
+    .прог-бар-зап  { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+    .прог-вердикт  { font-size: 13px; font-weight: 500; text-align: center; margin-bottom: 12px; }
+    .подробнее { margin-top: 2px; }
+    .подробнее summary { font-size:12px; color:var(--text-2); cursor:pointer; list-style:none; display:flex; align-items:center; gap:5px; user-select:none; padding:6px 0; transition:color 0.15s; }
+    .подробнее summary::-webkit-details-marker { display:none; }
+    .подробнее summary::before { content:'▶'; font-size:8px; transition:transform 0.2s ease; color:var(--text-3); }
+    .подробнее[open] summary::before { transform:rotate(90deg); }
+    .подробнее summary:hover { color:var(--text-1); }
+    .факторы-список { display:flex; flex-direction:column; gap:5px; margin-top:8px; padding-top:8px; border-top:1px solid var(--border); }
+    .фактор { display:flex; align-items:flex-start; gap:7px; font-size:12px; line-height:1.5; color:var(--text-2); }
+    .фактор .ф-иконка { flex-shrink:0; width:16px; text-align:center; font-size:13px; }
+    .фактор.плюс  .ф-текст { color:#a8f0d2; }
+    .фактор.минус .ф-текст { color:#ffaaaa; }
+    .фактор.нейтр .ф-текст { color:var(--text-2); }
+
+    /* ── Погода 7 дней ── */
+    .неделя-сетка { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+    .день-кол { display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:8px 4px 6px; border-radius:8px; border:1px solid transparent; min-height:96px; gap:4px; }
+    .день-кол.сегодня { border-color:var(--green); background:rgba(0,214,143,0.06); }
+    .день-нзв { font-size:10px; font-weight:600; color:var(--text-3); line-height:1; }
+    .день-нзв.сег { color:var(--green); }
+    .день-ик  { font-size:18px; line-height:1; }
+    .день-мкс { font-size:12px; font-weight:600; color:var(--text-1); line-height:1; }
+    .день-мин { font-size:11px; color:var(--text-3); line-height:1; }
+    .день-ос  { font-size:10px; color:var(--blue); line-height:1; }
+
+    /* ── Виджет давления ── */
+    .давл-тело { display:flex; align-items:center; gap:16px; }
+    .давл-инфо { flex:1; }
+    .давл-число { font-size:32px; font-weight:700; line-height:1; }
+    .давл-ед    { font-size:13px; color:var(--text-2); font-weight:400; margin-left:3px; }
+    .давл-тренд { font-size:13px; font-weight:600; margin-top:5px; }
+    .давл-изм   { font-size:11px; color:var(--text-3); margin-top:2px; }
+    .давл-спарклайн { margin-top:10px; opacity:0.75; }
+    .давл-метка { font-size:10px; color:var(--text-3); margin-top:4px; }
+
+    .popup { z-index: 500; }
+    .leaflet-popup-content-wrapper { background: var(--bg-panel) !important; border: 1px solid var(--border-md) !important; border-radius: 8px !important; color: var(--text-1) !important; }
+    .leaflet-popup-tip { background: var(--bg-panel) !important; border-top-color: var(--border-md) !important; }
+
+    .поп-загол { font-weight: 600; margin-bottom: 8px; font-size: 13px; }
+    .поп-рыба-стр { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 11px; }
+    .поп-рыба-им { color: var(--text-1); flex: 0 0 auto; min-width: 60px; }
+    .поп-рыба-бар { flex: 1; height: 4px; background: var(--bg-page); border-radius: 2px; overflow: hidden; }
+    .поп-рыба-зап { height: 100%; border-radius: 2px; }
+    .поп-рыба-пцт { flex: 0 0 30px; text-align: right; font-weight: 600; }
+
+    #fab-добавить {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      z-index: 1000;
+      background: var(--green);
+      color: #0a1a0f;
+      border: none;
+      border-radius: var(--r-btn);
+      padding: 9px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(0,214,143,0.3);
+      transition: all 0.2s ease;
+    }
+    #fab-добавить:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,214,143,0.4); }
+    #fab-добавить.активен { background: var(--yellow); color: #1a1200; }
+
+    #подсказка-добавления, #подсказка-пусто {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 999;
+      background: rgba(26,35,50,0.92);
+      color: var(--text-1);
+      padding: 14px 20px;
+      border-radius: var(--r-card);
+      border: 1px solid var(--border-md);
+      text-align: center;
+      font-size: 14px;
+      line-height: 1.6;
+      pointer-events: none;
+      backdrop-filter: blur(8px);
+      display: none;
+    }
+
+    #кн-настройки {
+      background: transparent;
+      border: 1px solid var(--border-md);
+      border-radius: var(--r-btn);
+      color: var(--text-2);
+      font-size: 16px;
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: 'Inter', sans-serif;
+    }
+    #кн-настройки:hover { background: var(--bg-hover); color: var(--text-1); }
+
+    .место-назв { font-size: 16px; font-weight: 600; color: var(--text-1); }
+    .место-тип { font-size: 12px; color: var(--text-2); margin-top: 3px; }
+    .место-рыбы { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .место-рыба-тег { background: rgba(77,166,255,0.1); border: 1px solid rgba(77,166,255,0.2); border-radius: 12px; padding: 3px 10px; font-size: 11px; color: var(--blue); }
+    .место-заметки { font-size: 12px; color: var(--text-3); margin-top: 8px; line-height: 1.5; font-style: italic; }
+    .место-кн-ряд { display: flex; gap: 8px; margin-top: 12px; }
+    .место-кн-ред { border: 1px solid var(--border-md); border-radius: var(--r-btn); background: transparent; color: var(--text-2); font-size: 12px; padding: 6px 12px; cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.15s; }
+    .место-кн-ред:hover { background: var(--bg-hover); color: var(--text-1); }
+
+    .давл-7дней { margin-top: 14px; }
+    .давл-7дней-метка { display: flex; justify-content: space-between; margin-top: 4px; }
+    .давл-7дней-метка span { font-size: 9px; color: var(--text-3); }
+    .давл-7дней-нзв { display: flex; justify-content: space-between; margin-top: 5px; }
+    .давл-7дней-нзв span { font-size: 9px; color: var(--text-3); text-align: center; flex: 1; }
+
+    .лд-стр { display: flex; align-items: center; gap: 6px; padding: 7px 10px; border-radius: 8px; border: 1px solid transparent; margin-bottom: 4px; transition: background 0.15s; overflow: hidden; }
+    .лд-стр.лучший { border-color: var(--green); background: rgba(0,214,143,0.06); }
+    .лд-дата { font-size: 11px; color: var(--text-2); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .лд-погода { font-size: 14px; width: 20px; text-align: center; flex-shrink: 0; }
+    .лд-темп { font-size: 11px; color: var(--text-1); width: 32px; flex-shrink: 0; text-align: right; }
+    .лд-давл { font-size: 11px; color: var(--text-3); width: 52px; flex-shrink: 0; text-align: center; }
+    .лд-пцт { font-size: 12px; font-weight: 700; width: 36px; text-align: right; flex-shrink: 0; white-space: nowrap; }
+    .лд-бар-трек { width: 36px; flex-shrink: 0; height: 4px; background: var(--bg-page); border-radius: 2px; overflow: hidden; }
+    .лд-бар-зап { height: 100%; border-radius: 2px; }
+
+    .модал-оверлей {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .модал-карточка {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-md);
+      border-radius: var(--r-main);
+      width: 100%;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.4);
+    }
+    .модал-шапка {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .модал-закрыть {
+      background: transparent;
+      border: none;
+      color: var(--text-3);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 0 4px;
+      font-family: 'Inter', sans-serif;
+    }
+    .модал-закрыть:hover { color: var(--text-1); }
+    .модал-тело { padding: 20px; }
+    .модал-кнопки { display: flex; align-items: center; margin-top: 20px; }
+
+    .форм-группа { margin-bottom: 14px; }
+    .форм-метка { display: block; font-size: 12px; color: var(--text-2); margin-bottom: 6px; font-weight: 500; }
+    .форм-инпут {
+      width: 100%;
+      background: var(--bg-card);
+      border: 1px solid var(--border-md);
+      border-radius: 8px;
+      color: var(--text-1);
+      padding: 9px 12px;
+      font-size: 13px;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .форм-инпут:focus { border-color: var(--green); }
+    .форм-инпут-ро { background: var(--bg-page); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font-size: 12px; color: var(--text-3); }
+
+    .рыбы-чекбоксы { display: flex; flex-wrap: wrap; gap: 7px; }
+    .рыба-чбкс-лейбл {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      border: 1px solid var(--border-md);
+      border-radius: var(--r-btn);
+      padding: 5px 10px;
+      font-size: 12px;
+      color: var(--text-2);
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .рыба-чбкс-лейбл:has(input:checked) {
+      background: rgba(0,214,143,0.1);
+      border-color: var(--green);
+      color: var(--green);
+    }
+    .рыба-чбкс-лейбл input { display: none; }
+
+    .кн-первичная {
+      background: var(--green);
+      color: #0a1a0f;
+      border: none;
+      border-radius: var(--r-btn);
+      padding: 9px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .кн-первичная:hover { opacity: 0.88; }
+    .кн-вторичная {
+      background: transparent;
+      border: 1px solid var(--border-md);
+      border-radius: var(--r-btn);
+      color: var(--text-2);
+      padding: 9px 18px;
+      font-size: 13px;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .кн-вторичная:hover { background: var(--bg-hover); color: var(--text-1); }
+    .кн-опасность {
+      background: rgba(255,77,77,0.1);
+      border: 1px solid rgba(255,77,77,0.25);
+      border-radius: var(--r-btn);
+      color: var(--red);
+      padding: 9px 14px;
+      font-size: 12px;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .кн-опасность:hover { background: rgba(255,77,77,0.18); }
+
+    .нас-вкладки { display: flex; border-bottom: 1px solid var(--border); padding: 0 20px; }
+    .нас-вкл {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-2);
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: all 0.15s;
+      margin-bottom: -1px;
+    }
+    .нас-вкл.active { color: var(--green); border-bottom-color: var(--green); }
+
+    .нас-итем { border: 1px solid var(--border); border-radius: var(--r-card); margin-bottom: 8px; overflow: hidden; }
+    .нас-итем-шапка { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; cursor: pointer; transition: background 0.15s; }
+    .нас-итем-шапка:hover { background: var(--bg-hover); }
+    .нас-секция { font-size: 11px; color: var(--text-3); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+    .нас-итем-форма { padding: 14px; border-top: 1px solid var(--border); background: var(--bg-page); display: none; }
+    .нас-итем.открыт .нас-итем-форма { display: block; }
+
+    .форм-диапазон { width: 100%; accent-color: var(--green); }
+    .форм-диапазон-ряд { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .форм-диапазон-метка { font-size: 12px; color: var(--text-2); width: 140px; flex-shrink: 0; }
+    .форм-диапазон-знач { font-size: 12px; font-weight: 600; color: var(--text-1); width: 32px; text-align: right; }
+
+    .форм-число {
+      background: var(--bg-card);
+      border: 1px solid var(--border-md);
+      border-radius: 6px;
+      color: var(--text-1);
+      padding: 5px 8px;
+      font-size: 12px;
+      font-family: 'Inter', sans-serif;
+      width: 64px;
+      outline: none;
+    }
+    .форм-число:focus { border-color: var(--green); }
+
+    .бонусы-сетка { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 8px; }
+    .бонус-ряд { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--text-2); }
+
+    @media (max-width: 1024px) {
+      #app { flex-direction: column; }
+      #панель { width: 100%; }
+      #карта-обёртка { flex: none; height: 40vh; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="карта-обёртка">
+      <div id="map"></div>
+      <button id="fab-добавить" title="Добавить место">+ Добавить место</button>
+      <div id="подсказка-добавления">🎯 Кликните на карту, чтобы поставить метку</div>
+      <div id="подсказка-пусто">У вас пока нет мест.<br>Нажмите «+ Добавить место», чтобы начать</div>
+    </div>
+
+    <div id="панель">
+      <div id="шапка-панели">
+        <span id="время-текст">--:--</span>
+        <button id="кн-настройки" title="Настройки">⚙️</button>
+      </div>
+      <div id="апи-баннер" style="display:none"></div>
+      <div id="панель-скролл">
+        <div class="карточка">
+          <div class="карт-загол">Вид рыбы</div>
+          <div id="рыба-ряд" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        </div>
+
+        <div class="карточка" id="карточка-места" style="display:none">
+          <div id="место-тело"></div>
+        </div>
+
+        <div class="карточка" id="прог-карточка" style="display:none">
+          <div class="карт-загол">Прогноз на сейчас</div>
+          <div id="прог-тело"></div>
+        </div>
+
+        <div class="карточка">
+          <div class="карт-загол">Давление</div>
+          <div id="давл-тело"></div>
+        </div>
+
+        <div class="карточка" id="лучший-день-карточка" style="display:none">
+          <div class="карт-загол">Лучший день для рыбалки</div>
+          <div id="лучший-день-тело"></div>
+        </div>
+
+        <div class="карточка">
+          <div class="карт-загол">Неделя</div>
+          <div id="неделя-тело"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="модал-место-оверлей" class="модал-оверлей" style="display:none">
+    <div class="модал-карточка" style="max-width:420px">
+      <div class="модал-шапка">
+        <span id="модал-место-загол">Новое место</span>
+        <button class="модал-закрыть" onclick="закрытьМодалМеста()">✕</button>
+      </div>
+      <div class="модал-тело">
+        <div class="форм-группа">
+          <label class="форм-метка">Название *</label>
+          <input id="мф-название" class="форм-инпут" type="text" placeholder="Например: Северный берег Капчагая">
+        </div>
+        <div class="форм-группа">
+          <label class="форм-метка">Тип водоёма</label>
+          <select id="мф-тип" class="форм-инпут">
+            <option value="river">Река</option>
+            <option value="small_river">Малая река</option>
+            <option value="reservoir">Водохранилище</option>
+            <option value="natural_lake">Естественное озеро</option>
+            <option value="artificial_lake">Искусственное озеро</option>
+            <option value="quarry">Карьер</option>
+          </select>
+        </div>
+        <div class="форм-группа">
+          <label class="форм-метка">Виды рыб</label>
+          <div id="мф-рыбы" class="рыбы-чекбоксы"></div>
+        </div>
+        <div class="форм-группа">
+          <label class="форм-метка">Заметки</label>
+          <textarea id="мф-заметки" class="форм-инпут" rows="3" placeholder="Необязательно"></textarea>
+        </div>
+        <div class="форм-группа">
+          <label class="форм-метка">Координаты</label>
+          <div id="мф-коорд" class="форм-инпут-ро"></div>
+        </div>
+        <div class="модал-кнопки">
+          <button id="мф-удалить" class="кн-опасность" style="display:none" onclick="удалитьМесто()">🗑️ Удалить</button>
+          <div style="display:flex;gap:8px;margin-left:auto">
+            <button class="кн-вторичная" onclick="закрытьМодалМеста()">Отмена</button>
+            <button class="кн-первичная" onclick="сохранитьМесто()">Сохранить</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="модал-настройки-оверлей" class="модал-оверлей" style="display:none">
+    <div class="модал-карточка" style="max-width:520px;max-height:80vh;display:flex;flex-direction:column">
+      <div class="модал-шапка">
+        <span>Настройки</span>
+        <button class="модал-закрыть" onclick="закрытьНастройки()">✕</button>
+      </div>
+      <div class="нас-вкладки">
+        <button class="нас-вкл active" data-tab="рыбы" onclick="переключитьВкладку(this,'рыбы')">Виды рыб</button>
+        <button class="нас-вкл" data-tab="типы" onclick="переключитьВкладку(this,'типы')">Типы водоёмов</button>
+      </div>
+      <div class="модал-тело" style="overflow-y:auto;flex:1">
+        <div id="нас-рыбы-вкл">
+          <button class="кн-первичная" style="margin-bottom:12px" onclick="добавитьРыбу()">+ Добавить рыбу</button>
+          <div id="нас-рыбы-список"></div>
+        </div>
+        <div id="нас-типы-вкл" style="display:none">
+          <div id="нас-типы-список"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+// ============ ИНИЦИАЛИЗАЦИЯ ДАННЫХ ============
+const ДЕФОЛТ_МЕСТА = [
+  {id:"spot_def_1",name:"Капчагай",lat:43.9114,lng:77.1203,waterType:"reservoir",fish:["плотва","карась","лещ","карп","судак","жерех"],notes:"",createdAt:1712345678000},
+  {id:"spot_def_2",name:"Река Или",lat:43.9311,lng:77.0816,waterType:"river",fish:["плотва","жерех","судак","лещ"],notes:"",createdAt:1712345678001},
+  {id:"spot_def_3",name:"Куртинское вдхр.",lat:43.8702,lng:76.3343,waterType:"reservoir",fish:["карась","лещ","карп","судак"],notes:"",createdAt:1712345678002},
+  {id:"spot_def_4",name:"Река Алматинка",lat:43.7438,lng:77.1014,waterType:"small_river",fish:["плотва","жерех"],notes:"",createdAt:1712345678003}
+];
+
+const ДЕФОЛТ_РЫБЫ = {
+  плотва:{название:"Плотва",иконка:"🐟",давление:{стабильное:15,падает:-30,резко_падает:-30,растёт:20,резко_растёт:10},темп_мин:5,темп_опт_мин:14,темп_опт_макс:22,темп_макс:25,время:{утро:15,вечер:10,день:-5,ночь:-10},ветер_слабый:5,ветер_средний:10,ветер_сильный:-5,ветер_шторм:-20,прозрачность:{чистая:10,слегка_мутная:-5,мутная:-20},луна:{растущая:5,полнолуние:-8,новолуние:0,убывающая:2},снасти:"поплавочная удочка, ультралайт",насадки:"мотыль, опарыш, тесто",место:"мели с водорослями"},
+  карась:{название:"Карась",иконка:"🐠",давление:{стабильное:15,падает:-20,резко_падает:-40,растёт:18,резко_растёт:8},темп_мин:8,темп_опт_мин:18,темп_опт_макс:26,темп_макс:32,время:{утро:15,вечер:10,день:-10,ночь:-5},ветер_слабый:15,ветер_средний:5,ветер_сильный:-10,ветер_шторм:-25,прозрачность:{чистая:5,слегка_мутная:5,мутная:-10},луна:{растущая:8,полнолуние:-12,новолуние:0,убывающая:3},снасти:"поплавочная удочка, фидер",насадки:"червь, опарыш, хлеб, кукуруза",место:"заросли тростника, заводи"},
+  лещ:{название:"Лещ",иконка:"🐡",давление:{стабильное:15,падает:-25,резко_падает:-25,растёт:20,резко_растёт:12},темп_мин:8,темп_опт_мин:15,темп_опт_макс:22,темп_макс:26,время:{утро:10,вечер:15,день:-10,ночь:20},ветер_слабый:5,ветер_средний:8,ветер_сильный:-5,ветер_шторм:-18,прозрачность:{чистая:5,слегка_мутная:8,мутная:-10},луна:{растущая:6,полнолуние:-5,новолуние:0,убывающая:2},снасти:"фидер, донка",насадки:"червь, перловка, опарыш, горох",место:"глубокие ямы, перекаты"},
+  карп:{название:"Карп/Сазан",иконка:"🎣",давление:{стабильное:12,падает:-15,резко_падает:-35,растёт:15,резко_растёт:8},темп_мин:10,темп_опт_мин:18,темп_опт_макс:28,темп_макс:31,время:{утро:10,вечер:15,день:-5,ночь:10},ветер_слабый:8,ветер_средний:5,ветер_сильный:-8,ветер_шторм:-20,прозрачность:{чистая:5,слегка_мутная:8,мутная:-5},луна:{растущая:8,полнолуние:-10,новолуние:2,убывающая:2},снасти:"фидер, карповые снасти",насадки:"кукуруза, бойлы, картофель",место:"глубокие ямы у свалов"},
+  судак:{название:"Судак",иконка:"🐬",давление:{стабильное:10,падает:-5,резко_падает:-15,растёт:15,резко_растёт:15},темп_мин:5,темп_опт_мин:13,темп_опт_макс:22,темп_макс:26,время:{утро:5,вечер:15,день:-15,ночь:25},ветер_слабый:-5,ветер_средний:10,ветер_сильный:5,ветер_шторм:-15,прозрачность:{чистая:10,слегка_мутная:0,мутная:-10},луна:{растущая:5,полнолуние:18,новолуние:15,убывающая:8},снасти:"спиннинг, джиговые оснастки",насадки:"воблеры, твистеры, живец",место:"каменистое дно, ямы"},
+  жерех:{название:"Жерех",иконка:"🌊",давление:{стабильное:12,падает:-8,резко_падает:-20,растёт:18,резко_растёт:10},темп_мин:8,темп_опт_мин:16,темп_опт_макс:24,темп_макс:28,время:{утро:20,вечер:15,день:5,ночь:-20},ветер_слабый:5,ветер_средний:12,ветер_сильный:5,ветер_шторм:-15,прозрачность:{чистая:12,слегка_мутная:0,мутная:-15},луна:{растущая:5,полнолуние:-3,новолуние:3,убывающая:2},снасти:"спиннинг средний",насадки:"блёсны, воблеры поверхностные",место:"быстрое течение, перекаты"}
+};
+
+const ДЕФОЛТ_ТИПЫ_ВОДОЁМОВ = {
+  river:{название:"Река",поправка_давление:0,поправка_ветер:-5,поправка_прозрачность:-5,бонус_рыбы:{жерех:15,судак:5,плотва:5},штраф_рыбы:{карась:-10,карп:-5}},
+  small_river:{название:"Малая река",поправка_давление:0,поправка_ветер:0,поправка_прозрачность:-5,бонус_рыбы:{жерех:10,плотва:8},штраф_рыбы:{карп:-10,лещ:-5}},
+  reservoir:{название:"Водохранилище",поправка_давление:5,поправка_ветер:-5,поправка_прозрачность:0,бонус_рыбы:{лещ:10,карп:8,судак:5},штраф_рыбы:{жерех:-5}},
+  natural_lake:{название:"Естественное озеро",поправка_давление:8,поправка_ветер:0,поправка_прозрачность:5,бонус_рыбы:{карась:15,карп:10,лещ:5},штраф_рыбы:{жерех:-15,судак:-5}},
+  artificial_lake:{название:"Искусственное озеро",поправка_давление:5,поправка_ветер:0,поправка_прозрачность:5,бонус_рыбы:{карась:10,карп:10},штраф_рыбы:{жерех:-10}},
+  quarry:{название:"Карьер",поправка_давление:3,поправка_ветер:5,поправка_прозрачность:10,бонус_рыбы:{судак:10,карп:5},штраф_рыбы:{жерех:-10,плотва:-5}}
+};
+
+function загрузитьМеста() { return JSON.parse(localStorage.getItem('kaz_spots') || 'null'); }
+function сохранитьМеста(d) { localStorage.setItem('kaz_spots', JSON.stringify(d)); }
+function загрузитьРыбДанные() { return JSON.parse(localStorage.getItem('kaz_fish_data') || 'null'); }
+function сохранитьРыбДанные(d) { localStorage.setItem('kaz_fish_data', JSON.stringify(d)); }
+function загрузитьТипыВодоёмов() { return JSON.parse(localStorage.getItem('kaz_watertype_data') || 'null'); }
+function сохранитьТипыВодоёмов(d) { localStorage.setItem('kaz_watertype_data', JSON.stringify(d)); }
+
+// ============ КЕШ ПОГОДЫ (localStorage) ============
+function загрузитьКешПогодыLS() {
+  try { return JSON.parse(localStorage.getItem('kaz_weather_cache') || 'null'); } catch { return null; }
+}
+function сохранитьКешПогодыLS() {
+  const запись = {};
+  Object.keys(кеш).forEach(id => {
+    запись[id] = { data: кеш[id], savedAt: кешДаты[id] || Date.now(), источник: кешИсточник[id] || null };
+  });
+  try { localStorage.setItem('kaz_weather_cache', JSON.stringify(запись)); } catch {}
+}
+function форматДатуКеша(ts) {
+  if (!ts) return 'прошлый сеанс';
+  const д = new Date(ts);
+  const сегодня = new Date();
+  const вчера = new Date(Date.now() - 86400000);
+  const времяСтр = д.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  if (д.toDateString() === сегодня.toDateString()) return `сегодня в ${времяСтр}`;
+  if (д.toDateString() === вчера.toDateString()) return `вчера в ${времяСтр}`;
+  return д.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) + ` в ${времяСтр}`;
+}
+
+function инициализироватьДанные() {
+  if (!загрузитьМеста()) сохранитьМеста(ДЕФОЛТ_МЕСТА);
+  if (!загрузитьРыбДанные()) сохранитьРыбДанные(ДЕФОЛТ_РЫБЫ);
+  if (!загрузитьТипыВодоёмов()) сохранитьТипыВодоёмов(ДЕФОЛТ_ТИПЫ_ВОДОЁМОВ);
+}
+
+// ============ ПЕРЕМЕННЫЕ СОСТОЯНИЯ ============
+let карта;
+let маркеры = {};
+let кеш = {};
+let ошибкиПогоды = {};   // spot.id → сообщение об ошибке
+let кешДаты = {};        // spot.id → timestamp последнего сохранения данных
+let кешСвежий = new Set(); // spot.id, данные которых получены в текущей сессии
+let кешИсточник = {};    // spot.id → 'Open-Meteo' | 'met.no' | undefined
+let выбРыба = 'плотва';
+let выбМесто = null;
+let режимДобавления = false;
+let редактируемоеМесто = null;
+
+// ============ ФУНКЦИИ РАСЧЁТА ============
+function calcTempScore(р, т) {
+  if (т < р.темп_мин) return -35;
+  if (т < р.темп_опт_мин) return -5;
+  if (т <= р.темп_опт_макс) return 25;
+  if (т <= р.темп_макс) return 5;
+  return -15;
+}
+
+function calcWindScore(р, w) {
+  if (w < 2) return р.ветер_слабый;
+  if (w <= 5) return р.ветер_средний;
+  if (w <= 9) return р.ветер_сильный;
+  return р.ветер_шторм;
+}
+
+function рассчитатьКлёв(идРыбы, п, типВодоёма) {
+  const рыбыД = загрузитьРыбДанные();
+  const типыД = загрузитьТипыВодоёмов();
+  const р = рыбыД[идРыбы];
+  if (!р || !п) return 0;
+  let s = 50;
+  s += р.давление[п.трендДавл] || 0;
+  s += calcTempScore(р, п.темпВоды);
+  s += р.время[п.времяСуток] || 0;
+  s += calcWindScore(р, п.ветерМс);
+  s += р.прозрачность[п.прозрКлюч] || 0;
+  s += р.луна[п.лунаКлюч] || 0;
+  if (типВодоёма && типыД[типВодоёма]) {
+    const тип = типыД[типВодоёма];
+    s += тип.поправка_давление || 0;
+    s += тип.поправка_ветер || 0;
+    s += тип.поправка_прозрачность || 0;
+    s += (тип.бонус_рыбы && тип.бонус_рыбы[идРыбы]) || 0;
+    s += (тип.штраф_рыбы && тип.штраф_рыбы[идРыбы]) || 0;
+  }
+  return Math.max(0, Math.min(100, Math.round(s)));
+}
+
+function рассчитатьКлёвДень(идРыбы, дд, типВодоёма) {
+  const рыбыД = загрузитьРыбДанные();
+  const р = рыбыД[идРыбы];
+  if (!р) return 0;
+  const темпВоды = getТемпВоды(дд.темпМакс);
+  const прозрКлюч = дд.осадки < 1 ? 'чистая' : дд.осадки < 5 ? 'слегка_мутная' : 'мутная';
+  const луна = getFazaLunyДата(дд.датаСтр);
+  let s = 50;
+  s += р.давление[дд.трендДавл] || 0;
+  s += calcTempScore(р, темпВоды);
+  s += р.время['утро'] || 0;
+  s += calcWindScore(р, дд.ветер);
+  s += р.прозрачность[прозрКлюч] || 0;
+  s += р.луна[луна.ключ] || 0;
+  const типыД = загрузитьТипыВодоёмов();
+  if (типВодоёма && типыД[типВодоёма]) {
+    const тип = типыД[типВодоёма];
+    s += тип.поправка_давление || 0;
+    s += тип.поправка_ветер || 0;
+    s += тип.поправка_прозрачность || 0;
+    s += (тип.бонус_рыбы && тип.бонус_рыбы[идРыбы]) || 0;
+    s += (тип.штраф_рыбы && тип.штраф_рыбы[идРыбы]) || 0;
+  }
+  return Math.max(0, Math.min(100, Math.round(s)));
+}
+
+function getTrend(часДавл, часВремя, текВремя) {
+  const i = часВремя.indexOf(текВремя);
+  if (i < 3) return 'стабильное';
+  const δ = часДавл[i] - часДавл[i - 3];
+  if (Math.abs(δ) < 2) return 'стабильное';
+  if (δ < -5) return 'резко_падает';
+  if (δ < -2) return 'падает';
+  if (δ > 5)  return 'резко_растёт';
+  return 'растёт';
+}
+
+function getПрозр(часОс, часВремя, текВремя) {
+  const i = часВремя.indexOf(текВремя);
+  if (i < 0) return { ключ:'чистая', назв:'чистая', симв:'💧' };
+  let с = 0;
+  for (let j = Math.max(0, i - 47); j <= i; j++) с += (часОс[j] || 0);
+  if (с < 1) return { ключ:'чистая',        назв:'чистая',        симв:'💧' };
+  if (с < 5) return { ключ:'слегка_мутная', назв:'слегка мутная', симв:'🌊' };
+  return          { ключ:'мутная',          назв:'мутная',         симв:'🌫️' };
+}
+
+function getFazaLuny() {
+  const t0 = new Date('2000-01-06T18:14:00Z');
+  const цикл = 29.53058867;
+  const tNow = new Date();
+  const д = ((tNow - t0) / 86400000 % цикл + цикл) % цикл;
+  if (д < 1.85 || д > 27.68) return { ключ: 'новолуние', назв: 'Новолуние', симв: '🌑' };
+  if (д < 13.77) return { ключ: 'растущая', назв: 'Растущая луна', симв: '🌒' };
+  if (д < 16.38) return { ключ: 'полнолуние', назв: 'Полнолуние', симв: '🌕' };
+  return { ключ: 'убывающая', назв: 'Убывающая луна', симв: '🌘' };
+}
+
+function getFazaLunyДата(dateStr) {
+  const t0 = new Date('2000-01-06T18:14:00Z');
+  const цикл = 29.53058867;
+  const д = ((new Date(dateStr + 'T12:00:00Z') - t0) / 86400000 % цикл + цикл) % цикл;
+  if (д < 1.85 || д > 27.68) return { ключ: 'новолуние', назв: 'Новолуние', симв: '🌑' };
+  if (д < 13.77) return { ключ: 'растущая', назв: 'Растущая луна', симв: '🌒' };
+  if (д < 16.38) return { ключ: 'полнолуние', назв: 'Полнолуние', симв: '🌕' };
+  return { ключ: 'убывающая', назв: 'Убывающая луна', симв: '🌘' };
+}
+
+function getТемпВоды(воздух) {
+  const м = new Date().getMonth() + 1;
+  const δ = (м >= 12 || м <= 2) ? 3 : (м >= 6 && м <= 8) ? -4 : -1;
+  return Math.max(0.5, воздух + δ);
+}
+
+function getВремяСуток() {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 11) return 'утро';
+  if (h >= 11 && h < 18) return 'день';
+  if (h >= 18 && h < 22) return 'вечер';
+  return 'ночь';
+}
+
+function погодаЭмодзи(код) {
+  if (!код) return '🌤';
+  if (код === 0 || код === 1) return '☀️';
+  if (код === 2) return '🌤';
+  if (код === 3) return '☁️';
+  if (код === 45 || код === 48) return '🌫';
+  if ((код >= 51 && код <= 67) || (код >= 80 && код <= 82)) return '🌧';
+  if (код >= 71 && код <= 77) return '❄️';
+  if ((код >= 80 && код <= 82) || код === 85 || код === 86) return '🌧';
+  if (код >= 90 && код <= 99) return '⛈';
+  return '🌤';
+}
+
+function цветПцт(pct) {
+  if (pct >= 70) return '#00d68f';
+  if (pct >= 40) return '#f0a500';
+  return '#ff4d4d';
+}
+
+function вердиктПцт(p) {
+  if (p >= 75) return { текст:'Отличные условия',     фон:'rgba(0,214,143,0.12)',   цвет:'#00d68f' };
+  if (p >= 60) return { текст:'Хорошие условия',      фон:'rgba(0,214,143,0.07)',   цвет:'#5cdba8' };
+  if (p >= 45) return { текст:'Умеренный клёв',       фон:'rgba(240,165,0,0.10)',   цвет:'#f0c040' };
+  if (p >= 30) return { текст:'Слабый клёв',          фон:'rgba(255,77,77,0.08)',   цвет:'#ff8080' };
+  return           { текст:'Неблагоприятно',          фон:'rgba(255,77,77,0.12)',   цвет:'#ff4d4d' };
+}
+
+function показатьСАнимацией(эл, html) {
+  if (!эл) return;
+  эл.style.transition = 'opacity 0.15s ease';
+  эл.style.opacity = '0';
+  setTimeout(() => {
+    эл.innerHTML = html;
+    эл.style.opacity = '1';
+  }, 150);
+}
+
+// ============ ФУНКЦИИ МОДАЛЕЙ ============
+function открытьМодалМеста(spot, lat, lng) {
+  редактируемоеМесто = spot;
+  const рыбыД = загрузитьРыбДанные();
+  document.getElementById('модал-место-загол').textContent = spot ? 'Редактировать место' : 'Новое место';
+  document.getElementById('мф-название').value = spot?.name || '';
+  document.getElementById('мф-тип').value = spot?.waterType || 'reservoir';
+  document.getElementById('мф-заметки').value = spot?.notes || '';
+  document.getElementById('мф-коорд').textContent = spot ? `${spot.lat.toFixed(4)}, ${spot.lng.toFixed(4)}` : `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  document.getElementById('мф-удалить').style.display = spot ? 'block' : 'none';
+  const чекбоксы = document.getElementById('мф-рыбы');
+  чекбоксы.innerHTML = Object.entries(рыбыД).map(([ключ, р]) => `<label class="рыба-чбкс-лейбл"><input type="checkbox" value="${ключ}" ${(!spot || spot.fish?.includes(ключ)) ? 'checked' : ''}>${р.иконка} ${р.название}</label>`).join('');
+  document.getElementById('модал-место-оверлей').style.display = 'flex';
+}
+
+function закрытьМодалМеста() {
+  document.getElementById('модал-место-оверлей').style.display = 'none';
+  редактируемоеМесто = null;
+}
+
+function сохранитьМесто() {
+  const название = document.getElementById('мф-название').value.trim();
+  if (!название) { document.getElementById('мф-название').focus(); return; }
+  const рыбы = Array.from(document.querySelectorAll('#мф-рыбы input:checked')).map(el => el.value);
+  const тип = document.getElementById('мф-тип').value;
+  const заметки = document.getElementById('мф-заметки').value.trim();
+  const коордТекст = document.getElementById('мф-коорд').textContent;
+  const [lat, lng] = коордТекст.split(',').map(Number);
+  const места = загрузитьМеста();
+  if (редактируемоеМесто) {
+    const i = места.findIndex(s => s.id === редактируемоеМесто.id);
+    if (i >= 0) {
+      места[i] = { ...места[i], name: название, waterType: тип, fish: рыбы, notes: заметки };
+      if (выбМесто?.id === места[i].id) выбМесто = места[i];
+    }
+  } else {
+    const новое = { id: 'spot_' + Date.now(), name: название, lat, lng, waterType: тип, fish: рыбы, notes: заметки, createdAt: Date.now() };
+    места.push(новое);
+    сохранитьМеста(места);
+    закрытьМодалМеста();
+    обновитьМаркеры();
+    // Сразу загружаем погоду для нового места
+    запроситьПогоду(новое).then(п => {
+      кеш[новое.id] = п;
+      обновитьМаркеры();
+      if (выбМесто?.id === новое.id) { отрисоватьПрогноз(); отрисоватьДавление(); отрисоватьНеделю(); отрисоватьЛучшийДень(); }
+    }).catch(e => console.error('Погода для нового места:', e));
+    return;
+  }
+  сохранитьМеста(места);
+  закрытьМодалМеста();
+  обновитьМаркеры();
+  if (выбМесто) { отрисоватьКарточкуМеста(); отрисоватьПрогноз(); }
+}
+
+function удалитьМесто() {
+  if (!редактируемоеМесто) return;
+  if (!confirm(`Удалить место «${редактируемоеМесто.name}»?`)) return;
+  let места = загрузитьМеста();
+  delete кеш[редактируемоеМесто.id];
+  if (маркеры[редактируемоеМесто.id]) {
+    карта.removeLayer(маркеры[редактируемоеМесто.id]);
+    delete маркеры[редактируемоеМесто.id];
+  }
+  места = места.filter(s => s.id !== редактируемоеМесто.id);
+  сохранитьМеста(места);
+  if (выбМесто?.id === редактируемоеМесто.id) {
+    выбМесто = null;
+    отрисоватьКарточкуМеста();
+    отрисоватьПрогноз();
+    отрисоватьДавление();
+    отрисоватьЛучшийДень();
+    отрисоватьНеделю();
+  }
+  закрытьМодалМеста();
+  обновитьМаркеры();
+}
+
+function открытьРедакторМеста() {
+  if (!выбМесто) return;
+  открытьМодалМеста(выбМесто, выбМесто.lat, выбМесто.lng);
+}
+
+function открытьНастройки() {
+  document.getElementById('модал-настройки-оверлей').style.display = 'flex';
+  отрисоватьНасРыбы();
+  отрисоватьНасТипы();
+}
+
+function закрытьНастройки() {
+  document.getElementById('модал-настройки-оверлей').style.display = 'none';
+}
+
+function переключитьВкладку(кн, вкл) {
+  document.querySelectorAll('.нас-вкл').forEach(к => к.classList.remove('active'));
+  кн.classList.add('active');
+  document.getElementById('нас-рыбы-вкл').style.display = вкл === 'рыбы' ? 'block' : 'none';
+  document.getElementById('нас-типы-вкл').style.display = вкл === 'типы' ? 'block' : 'none';
+}
+
+function переключитьИтем(id) {
+  const эл = document.getElementById(id);
+  if (!эл) return;
+  const wasOpen = эл.classList.contains('открыт');
+  document.querySelectorAll('.нас-итем.открыт').forEach(el => el.classList.remove('открыт'));
+  if (!wasOpen) эл.classList.add('открыт');
+}
+
+// ============ НАСТРОЙКИ РЫБЫ ============
+function отрисоватьНасРыбы() {
+  const рыбыД = загрузитьРыбДанные();
+  const список = document.getElementById('нас-рыбы-список');
+  список.innerHTML = Object.entries(рыбыД).map(([ключ, р]) => `<div class="нас-итем" id="нас-рыба-${ключ}"><div class="нас-итем-шапка" onclick="переключитьИтем('нас-рыба-${ключ}')">${р.иконка} ${р.название}<span style="color:var(--text-3);font-size:12px">▶</span></div><div class="нас-итем-форма">${формаРыбы(ключ, р)}</div></div>`).join('');
+}
+
+function формаРыбы(ключ, р) {
+  const слайд = (id, мин, макс, знач, метка) =>
+    `<div class="форм-диапазон-ряд">
+      <span class="форм-диапазон-метка">${метка}</span>
+      <input type="range" class="форм-диапазон" id="${id}" min="${мин}" max="${макс}" value="${знач}"
+        oninput="document.getElementById('${id}-v').textContent=this.value">
+      <span class="форм-диапазон-знач" id="${id}-v">${знач}</span>
+    </div>`;
+  return `
+    <div class="форм-диапазон-ряд" style="margin-bottom:8px">
+      <span class="форм-диапазон-метка">Название</span>
+      <input class="форм-инпут" style="flex:1" id="рф-${ключ}-название" value="${р.название}">
+    </div>
+    <div class="форм-диапазон-ряд" style="margin-bottom:12px">
+      <span class="форм-диапазон-метка">Иконка</span>
+      <input class="форм-инпут" style="width:64px" id="рф-${ключ}-иконка" value="${р.иконка}">
+    </div>
+    <div class="нас-секция">Давление</div>
+    ${слайд(`рф-${ключ}-давл-стабильное`,-50,30,р.давление.стабильное,'Стабильное')}
+    ${слайд(`рф-${ключ}-давл-падает`,-50,30,р.давление.падает,'Падает')}
+    ${слайд(`рф-${ключ}-давл-резко_падает`,-50,30,р.давление.резко_падает,'Резко падает')}
+    ${слайд(`рф-${ключ}-давл-растёт`,-50,30,р.давление.растёт,'Растёт')}
+    ${слайд(`рф-${ключ}-давл-резко_растёт`,-50,30,р.давление.резко_растёт,'Резко растёт')}
+    <div class="нас-секция" style="margin-top:10px">Температура (°C)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px">
+      <div><label class="форм-метка">Мин</label><input type="number" class="форм-число" style="width:100%" id="рф-${ключ}-темп_мин" value="${р.темп_мин}"></div>
+      <div><label class="форм-метка">Оптимум мин</label><input type="number" class="форм-число" style="width:100%" id="рф-${ключ}-темп_опт_мин" value="${р.темп_опт_мин}"></div>
+      <div><label class="форм-метка">Оптимум макс</label><input type="number" class="форм-число" style="width:100%" id="рф-${ключ}-темп_опт_макс" value="${р.темп_опт_макс}"></div>
+      <div><label class="форм-метка">Макс</label><input type="number" class="форм-число" style="width:100%" id="рф-${ключ}-темп_макс" value="${р.темп_макс}"></div>
+    </div>
+    <div class="нас-секция" style="margin-top:10px">Время суток</div>
+    ${слайд(`рф-${ключ}-время-утро`,-30,30,р.время.утро,'Утро')}
+    ${слайд(`рф-${ключ}-время-день`,-30,30,р.время.день,'День')}
+    ${слайд(`рф-${ключ}-время-вечер`,-30,30,р.время.вечер,'Вечер')}
+    ${слайд(`рф-${ключ}-время-ночь`,-30,30,р.время.ночь,'Ночь')}
+    <div class="нас-секция" style="margin-top:10px">Ветер</div>
+    ${слайд(`рф-${ключ}-ветер_слабый`,-30,30,р.ветер_слабый,'Слабый (<2 м/с)')}
+    ${слайд(`рф-${ключ}-ветер_средний`,-30,30,р.ветер_средний,'Средний (2-5 м/с)')}
+    ${слайд(`рф-${ключ}-ветер_сильный`,-30,30,р.ветер_сильный,'Сильный (5-9 м/с)')}
+    ${слайд(`рф-${ключ}-ветер_шторм`,-30,30,р.ветер_шторм,'Шторм (>9 м/с)')}
+    <div class="нас-секция" style="margin-top:10px">Снасти и насадки</div>
+    <div class="форм-группа"><label class="форм-метка">Снасти</label><input class="форм-инпут" id="рф-${ключ}-снасти" value="${р.снасти||''}"></div>
+    <div class="форм-группа"><label class="форм-метка">Насадки</label><input class="форм-инпут" id="рф-${ключ}-насадки" value="${р.насадки||''}"></div>
+    <div class="форм-группа"><label class="форм-метка">Место</label><input class="форм-инпут" id="рф-${ключ}-место" value="${р.место||''}"></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="кн-первичная" onclick="сохранитьРыбу('${ключ}')">Сохранить</button>
+      <button class="кн-опасность" onclick="удалитьРыбу('${ключ}')">Удалить рыбу</button>
+    </div>
+  `;
+}
+
+function сохранитьРыбу(ключ) {
+  const рыбыД = загрузитьРыбДанные();
+  const г = (id) => document.getElementById(id)?.value;
+  const гн = (id) => Number(document.getElementById(id)?.value) || 0;
+  рыбыД[ключ] = { ...рыбыД[ключ], название: г(`рф-${ключ}-название`) || рыбыД[ключ].название, иконка: г(`рф-${ключ}-иконка`) || рыбыД[ключ].иконка, давление: { стабильное: гн(`рф-${ключ}-давл-стабильное`), падает: гн(`рф-${ключ}-давл-падает`), резко_падает: гн(`рф-${ключ}-давл-резко_падает`), растёт: гн(`рф-${ключ}-давл-растёт`), резко_растёт: гн(`рф-${ключ}-давл-резко_растёт`) }, темп_мин: гн(`рф-${ключ}-темп_мин`), темп_опт_мин: гн(`рф-${ключ}-темп_опт_мин`), темп_опт_макс: гн(`рф-${ключ}-темп_опт_макс`), темп_макс: гн(`рф-${ключ}-темп_макс`), время: { утро: гн(`рф-${ключ}-время-утро`), день: гн(`рф-${ключ}-время-день`), вечер: гн(`рф-${ключ}-время-вечер`), ночь: гн(`рф-${ключ}-время-ночь`) }, ветер_слабый: гн(`рф-${ключ}-ветер_слабый`), ветер_средний: гн(`рф-${ключ}-ветер_средний`), ветер_сильный: гн(`рф-${ключ}-ветер_сильный`), ветер_шторм: гн(`рф-${ключ}-ветер_шторм`), снасти: г(`рф-${ключ}-снасти`) || '', насадки: г(`рф-${ключ}-насадки`) || '', место: г(`рф-${ключ}-место`) || '' };
+  сохранитьРыбДанные(рыбыД);
+  обновитьМаркеры();
+  обновитьКнопкиРыбы();
+  alert('Сохранено!');
+}
+
+function удалитьРыбу(ключ) {
+  if (!confirm('Удалить этот вид рыбы?')) return;
+  const рыбыД = загрузитьРыбДанные();
+  delete рыбыД[ключ];
+  сохранитьРыбДанные(рыбыД);
+  if (выбРыба === ключ) выбРыба = Object.keys(рыбыД)[0] || '';
+  обновитьКнопкиРыбы();
+  обновитьМаркеры();
+  отрисоватьНасРыбы();
+}
+
+function добавитьРыбу() {
+  const ключ = prompt('Ключ новой рыбы (без пробелов):');
+  if (!ключ || !/^[\w\u0400-\u04FF]+$/.test(ключ)) return;
+  const рыбыД = загрузитьРыбДанные();
+  if (рыбыД[ключ]) { alert('Такая рыба уже есть'); return; }
+  рыбыД[ключ] = { название: ключ, иконка: '🐟', давление: { стабильное: 10, падает: -10, резко_падает: -20, растёт: 10, резко_растёт: 5 }, темп_мин: 10, темп_опт_мин: 15, темп_опт_макс: 25, темп_макс: 30, время: { утро: 10, вечер: 10, день: 0, ночь: 0 }, ветер_слабый: 5, ветер_средний: 5, ветер_сильный: -5, ветер_шторм: -15, прозрачность: { чистая: 5, слегка_мутная: 0, мутная: -5 }, луна: { растущая: 5, полнолуние: 0, новолуние: 0, убывающая: 2 }, снасти: '', насадки: '', место: '' };
+  сохранитьРыбДанные(рыбыД);
+  обновитьКнопкиРыбы();
+  отрисоватьНасРыбы();
+}
+
+// ============ НАСТРОЙКИ ТИПЫ ВОДОЁМОВ ============
+function отрисоватьНасТипы() {
+  const типыД = загрузитьТипыВодоёмов();
+  const рыбыД = загрузитьРыбДанные();
+  const список = document.getElementById('нас-типы-список');
+  список.innerHTML = Object.entries(типыД).map(([ключ, т]) => `<div class="нас-итем" id="нас-тип-${ключ}"><div class="нас-итем-шапка" onclick="переключитьИтем('нас-тип-${ключ}')">${т.название}<span style="color:var(--text-3);font-size:12px">▶</span></div><div class="нас-итем-форма">${формаТипа(ключ, т, рыбыД)}</div></div>`).join('');
+}
+
+function формаТипа(ключ, т, рыбыД) {
+  return `${[['поправка_давление','Поправка давление'],['поправка_ветер','Поправка ветер'],['поправка_прозрачность','Поправка прозрачность']].map(([п,н])=>`<div class="форм-диапазон-ряд"><span class="форм-диапазон-метка">${н}</span><input type="range" class="форм-диапазон" id="тф-${ключ}-${п}" min="-20" max="20" value="${т[п]||0}" oninput="document.getElementById('тф-${ключ}-${п}-v').textContent=this.value"><span class="форм-диапазон-знач" id="тф-${ключ}-${п}-v">${т[п]||0}</span></div>`).join('')}<div style="font-size:11px;color:var(--text-3);margin:10px 0 6px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Бонусы/штрафы рыб</div><div class="бонусы-сетка">${Object.entries(рыбыД).map(([рк,р])=>{const бонус=(т.бонус_рыбы&&т.бонус_рыбы[рк])||0;const штраф=(т.штраф_рыбы&&т.штраф_рыбы[рк])||0;const итог=бонус+штраф;return`<div class="бонус-ряд"><span>${р.иконка} ${р.название}</span><input type="number" class="форм-число" id="тф-${ключ}-рыба-${рк}" value="${итог}" min="-30" max="30"></div>`;}).join('')}</div><button class="кн-первичная" style="margin-top:12px" onclick="сохранитьТипВодоёма('${ключ}')">Сохранить</button>`;
+}
+
+function сохранитьТипВодоёма(ключ) {
+  const типыД = загрузитьТипыВодоёмов();
+  const рыбыД = загрузитьРыбДанные();
+  const гн = (id) => Number(document.getElementById(id)?.value) || 0;
+  типыД[ключ].поправка_давление = гн(`тф-${ключ}-поправка_давление`);
+  типыД[ключ].поправка_ветер = гн(`тф-${ключ}-поправка_ветер`);
+  типыД[ключ].поправка_прозрачность = гн(`тф-${ключ}-поправка_прозрачность`);
+  типыД[ключ].бонус_рыбы = {};
+  типыД[ключ].штраф_рыбы = {};
+  Object.keys(рыбыД).forEach(рк => {
+    const знач = гн(`тф-${ключ}-рыба-${рк}`);
+    if (знач > 0) типыД[ключ].бонус_рыбы[рк] = знач;
+    else if (знач < 0) типыД[ключ].штраф_рыбы[рк] = знач;
+  });
+  сохранитьТипыВодоёмов(типыД);
+  обновитьМаркеры();
+  alert('Сохранено!');
+}
+
+// ============ ОБНОВЛЕНИЕ КНОПОК РЫБЫ ============
+function обновитьКнопкиРыбы() {
+  const рыбыД = загрузитьРыбДанные();
+  const ряд = document.getElementById('рыба-ряд');
+  ряд.innerHTML = Object.entries(рыбыД).map(([ключ, р]) => `<button class="fish-btn ${ключ === выбРыба ? 'active' : ''}" data-fish="${ключ}">${р.иконка} ${р.название}</button>`).join('');
+  ряд.querySelectorAll('.fish-btn').forEach(кн => {
+    кн.addEventListener('click', () => {
+      ряд.querySelectorAll('.fish-btn').forEach(к => к.classList.remove('active'));
+      кн.classList.add('active');
+      выбРыба = кн.dataset.fish;
+      обновитьМаркеры();
+      отрисоватьПрогноз();
+      отрисоватьЛучшийДень();
+    });
+  });
+}
+
+// ============ ОБНОВЛЕНИЕ ВРЕМЕНИ ============
+function обновитьВремя() {
+  const tz = 'Asia/Almaty';
+  const t = new Intl.DateTimeFormat('ru-RU', { timeStyle: 'short', timeZone: tz }).format(new Date());
+  document.getElementById('время-текст').textContent = t;
+}
+
+// ============ ЗАПРОС ПОГОДЫ ============
+async function запроситьПогоду(spot, signal) {
+  const url = [
+    'https://api.open-meteo.com/v1/forecast',
+    `?latitude=${spot.lat}&longitude=${spot.lng}`,
+    '&current=temperature_2m,pressure_msl,windspeed_10m,winddirection_10m,precipitation',
+    '&hourly=pressure_msl,precipitation,temperature_2m',
+    '&daily=weather_code,temperature_2m_max,temperature_2m_min',
+    ',precipitation_sum,precipitation_probability_max,windspeed_10m_max',
+    '&timezone=Asia%2FAlmaty&past_days=2&forecast_days=7',
+  ].join('');
+
+  const r = await fetch(url, signal ? { signal } : {});
+  if (!r.ok) {
+    const текст = await r.text().catch(() => '');
+    throw new Error(`HTTP ${r.status}${текст ? ': ' + текст.slice(0, 120) : ''}`);
+  }
+  const д = await r.json();
+
+  const темпВоздух  = д.current.temperature_2m;
+  // current.time приходит с минутами ("14:15"), hourly — по часам ("14:00")
+  // обрезаем до часа для корректного indexOf
+  const текВремяЧас = д.current.time.slice(0, 13) + ':00';
+  const трендДавл   = getTrend(д.hourly.pressure_msl, д.hourly.time, текВремяЧас);
+  const прозр       = getПрозр(д.hourly.precipitation, д.hourly.time, текВремяЧас);
+  const луна        = getFazaLuny();
+
+  const iТек = д.hourly.time.indexOf(текВремяЧас);
+  const давлТек = iТек >= 0 ? д.hourly.pressure_msl[iТек] : д.current.pressure_msl;
+  const давл24н = iТек >= 24 ? д.hourly.pressure_msl[iТек - 24] : null;
+  const давлИзм = давл24н != null ? Math.round((давлТек - давл24н) * 10) / 10 : null;
+
+  // поддержка нового (weather_code) и старого (weathercode) имени поля
+  const daily = д.daily;
+  if (daily && !daily.weather_code && daily.weathercode) daily.weather_code = daily.weathercode;
+
+  return {
+    темпВоздух,
+    давление:    д.current.pressure_msl,
+    ветерМс:     д.current.windspeed_10m,
+    ветерГрад:   д.current.winddirection_10m,
+    темпВоды:    getТемпВоды(темпВоздух),
+    трендДавл,
+    давлИзм,
+    прозрКлюч:   прозр.ключ,
+    прозрНазв:   прозр.назв,
+    прозрСимв:   прозр.симв,
+    лунаКлюч:    луна.ключ,
+    лунаНазв:    луна.назв,
+    лунаСимв:    луна.симв,
+    времяСуток:  getВремяСуток(),
+    daily,
+    часДавл:     д.hourly.pressure_msl,
+    часВремя:    д.hourly.time,
+    часОсадки:   д.hourly.precipitation,
+    текВремя:    текВремяЧас,
+  };
+}
+
+// ============ РЕЗЕРВНЫЙ API (met.no) ============
+async function запроситьПогодуМетНО(spot, signal) {
+  const url = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${spot.lat.toFixed(4)}&lon=${spot.lng.toFixed(4)}`;
+  const r = await fetch(url, { signal });
+  if (!r.ok) throw new Error(`met.no HTTP ${r.status}`);
+  const д = await r.json();
+  const серия = д.properties?.timeseries;
+  if (!серия?.length) throw new Error('met.no: нет данных');
+
+  // Текущий час в Алмате: "2026-04-07T13:00"
+  const текВремяЧас = new Date()
+    .toLocaleString('sv-SE', { timeZone: 'Asia/Almaty' })
+    .slice(0, 13).replace(' ', 'T') + ':00';
+
+  // UTC → час Алматы
+  const toЧас = utcStr => new Date(utcStr)
+    .toLocaleString('sv-SE', { timeZone: 'Asia/Almaty' })
+    .slice(0, 13).replace(' ', 'T') + ':00';
+
+  // Почасовые массивы
+  const часВремя = [], часДавл = [], часОсадки = [];
+  серия.forEach(е => {
+    часВремя.push(toЧас(е.time));
+    часДавл.push(е.data?.instant?.details?.air_pressure_at_sea_level ?? null);
+    часОсадки.push(е.data?.next_1_hours?.details?.precipitation_amount ?? 0);
+  });
+
+  // met.no начинается с текущего часа+1 — ищем ближайший доступный
+  let iТек = часВремя.indexOf(текВремяЧас);
+  if (iТек < 0) iТек = часВремя.findIndex(t => t > текВремяЧас);
+  if (iТек < 0) iТек = 0;
+  const эфВремя = часВремя[iТек];  // эффективное время для getTrend/getПрозр
+
+  const дет = серия[iТек]?.data?.instant?.details ?? {};
+  const темпВоздух = дет.air_temperature ?? 0;
+  const давление   = дет.air_pressure_at_sea_level ?? 1013;
+  const ветерМс    = дет.wind_speed ?? 0;
+  const ветерГрад  = дет.wind_from_direction ?? 0;
+
+  // Тренд по ближайшим данным (у met.no нет истории — смотрим вперёд)
+  let трендДавл;
+  if (iТек >= 3) {
+    трендДавл = getTrend(часДавл, часВремя, эфВремя);
+  } else {
+    const n = Math.min(3, часДавл.length - 1);
+    const δ = n > 0 ? (часДавл[n] ?? 0) - (часДавл[0] ?? 0) : 0;
+    if (Math.abs(δ) < 2)       трендДавл = 'стабильное';
+    else if (δ < -5)            трендДавл = 'резко_падает';
+    else if (δ < -2)            трендДавл = 'падает';
+    else if (δ > 5)             трендДавл = 'резко_растёт';
+    else                        трендДавл = 'растёт';
+  }
+  const прозр = getПрозр(часОсадки, часВремя, эфВремя);
+  const луна  = getFazaLuny();
+
+  const давл24н = iТек >= 24 ? часДавл[iТек - 24] : null;
+  const давлИзм = давл24н != null ? Math.round((давление - давл24н) * 10) / 10 : null;
+
+  // Дневные агрегаты
+  const поДням = {};
+  серия.forEach((е, i) => {
+    const дата = часВремя[i]?.slice(0, 10);
+    if (!дата) return;
+    if (!поДням[дата]) поДням[дата] = { temps: [], winds: [], ос: [], код: null };
+    const t = е.data?.instant?.details?.air_temperature;
+    const w = е.data?.instant?.details?.wind_speed;
+    const o = е.data?.next_1_hours?.details?.precipitation_amount;
+    if (t != null) поДням[дата].temps.push(t);
+    if (w != null) поДням[дата].winds.push(w);
+    if (o != null) поДням[дата].ос.push(o);
+    if (!поДням[дата].код)
+      поДням[дата].код = е.data?.next_6_hours?.summary?.symbol_code
+        || е.data?.next_1_hours?.summary?.symbol_code || null;
+  });
+  const симвВВМО = к => {
+    if (!к) return 0;
+    if (/thunder/.test(к)) return 95;
+    if (/snow|sleet/.test(к)) return 71;
+    if (/rain|shower|drizzle/.test(к)) return 61;
+    if (/fog/.test(к)) return 45;
+    if (/cloudy/.test(к)) return 3;
+    if (/partlycloudy|fair/.test(к)) return 2;
+    return 0;
+  };
+  const дни = Object.keys(поДням).sort();
+  const daily = {
+    time: дни,
+    temperature_2m_max: дни.map(д => поДням[д].temps.length ? Math.max(...поДням[д].temps) : 0),
+    temperature_2m_min: дни.map(д => поДням[д].temps.length ? Math.min(...поДням[д].temps) : 0),
+    weather_code: дни.map(д => симвВВМО(поДням[д].код)),
+    precipitation_sum: дни.map(д => поДням[д].ос.reduce((a, b) => a + b, 0)),
+    precipitation_probability_max: дни.map(д => {
+      // met.no не отдаёт вероятность осадков — оцениваем по суточной сумме осадков
+      const суммаОс = поДням[д].ос.reduce((a, b) => a + b, 0);
+      if (суммаОс > 10) return 85;
+      if (суммаОс > 5)  return 65;
+      if (суммаОс > 2)  return 45;
+      if (суммаОс > 0.5) return 25;
+      return 5;
+    }),
+    windspeed_10m_max: дни.map(д => поДням[д].winds.length ? Math.max(...поДням[д].winds) : 0),
+  };
+
+  return {
+    темпВоздух, давление, ветерМс, ветерГрад,
+    темпВоды: getТемпВоды(темпВоздух),
+    трендДавл, давлИзм,
+    прозрКлюч: прозр.ключ, прозрНазв: прозр.назв, прозрСимв: прозр.симв,
+    лунаКлюч: луна.ключ, лунаНазв: луна.назв, лунаСимв: луна.симв,
+    времяСуток: getВремяСуток(),
+    daily, часДавл, часВремя, часОсадки, текВремя: эфВремя,
+  };
+}
+
+// ============ ОБЁРТКА С РЕЗЕРВНЫМ API ============
+async function запроситьПогодуСРезервом(spot) {
+  // Попытка 1: Open-Meteo (таймаут 12 с)
+  const контр1 = new AbortController();
+  const тм1 = setTimeout(() => контр1.abort(), 12000);
+  try {
+    const данные = await запроситьПогоду(spot, контр1.signal);
+    clearTimeout(тм1);
+    return { данные, источник: 'Open-Meteo' };
+  } catch (е1) {
+    clearTimeout(тм1);
+    console.warn(`Open-Meteo (${spot.name}): ${е1.message} — пробуем met.no`);
+  }
+
+  // Попытка 2: met.no (таймаут 12 с)
+  const контр2 = new AbortController();
+  const тм2 = setTimeout(() => контр2.abort(), 12000);
+  try {
+    const данные = await запроситьПогодуМетНО(spot, контр2.signal);
+    clearTimeout(тм2);
+    return { данные, источник: 'met.no' };
+  } catch (е2) {
+    clearTimeout(тм2);
+    throw new Error(`Все API недоступны (${е2.message})`);
+  }
+}
+
+// ============ ЗАГРУЗКА ПОГОДЫ ============
+async function загрузитьПогоду() {
+  обновитьМаркеры();
+  const места = загрузитьМеста();
+  await Promise.allSettled(места.map(async spot => {
+    try {
+      delete ошибкиПогоды[spot.id];
+      const { данные, источник } = await запроситьПогодуСРезервом(spot);
+      кеш[spot.id] = данные;
+      кешДаты[spot.id] = Date.now();
+      кешИсточник[spot.id] = источник;
+      кешСвежий.add(spot.id);
+      сохранитьКешПогодыLS();
+      обновитьМаркеры();
+      обновитьБаннерАПИ();
+      if (выбМесто?.id === spot.id) {
+        отрисоватьПрогноз();
+        отрисоватьДавление();
+        отрисоватьНеделю();
+        отрисоватьЛучшийДень();
+      }
+    } catch (е) {
+      const сообщение = е.message || 'Все источники недоступны';
+      ошибкиПогоды[spot.id] = сообщение;
+      console.error(`Ошибка погоды «${spot.name}»:`, е);
+      обновитьМаркеры();
+      обновитьБаннерАПИ();
+      if (выбМесто?.id === spot.id) {
+        if (кеш[spot.id]) {
+          // Есть кеш — показываем его, метка устаревания будет в баннере и прогнозе
+          отрисоватьПрогноз();
+          отрисоватьДавление();
+          отрисоватьНеделю();
+          отрисоватьЛучшийДень();
+        } else {
+          отрисоватьПрогнозОшибка(сообщение);
+        }
+      }
+    }
+  }));
+}
+
+function отрисоватьПрогнозОшибка(сообщение) {
+  const эл = document.getElementById('прогноз-тело');
+  if (эл) эл.innerHTML = `
+    <div style="text-align:center;padding:24px 16px;color:var(--text-3)">
+      <div style="font-size:28px;margin-bottom:8px">⚠️</div>
+      <div style="font-size:13px;color:var(--text-2);margin-bottom:4px">Не удалось загрузить данные</div>
+      <div style="font-size:11px;color:var(--text-3);margin-bottom:16px">${сообщение}</div>
+      <button class="кн-вторичная" onclick="повторитьПогоду()" style="font-size:12px;padding:6px 16px">🔄 Повторить</button>
+    </div>`;
+  ['давл-тело','неделя-тело','лучший-день-тело'].forEach(id => {
+    const э = document.getElementById(id);
+    if (э) э.innerHTML = `<div style="text-align:center;padding:12px;color:var(--text-3);font-size:12px">⚠️ Нет данных</div>`;
+  });
+}
+
+function повторитьПогоду() {
+  // кеш и кешИсточник НЕ сбрасываем — они нужны как fallback если API снова недоступен
+  ошибкиПогоды = {};
+  кешСвежий = new Set();
+  обновитьБаннерАПИ();
+  обновитьМаркеры();
+  загрузитьПогоду();
+}
+
+function обновитьБаннерАПИ() {
+  const баннер = document.getElementById('апи-баннер');
+  if (!баннер) return;
+  const ошибочные = Object.keys(ошибкиПогоды);
+  if (ошибочные.length === 0) { баннер.style.display = 'none'; баннер.innerHTML = ''; return; }
+
+  // Разделяем: у кого есть стале-кеш, у кого нет данных вообще
+  const сКешем  = ошибочные.filter(id => кеш[id] && !кешСвежий.has(id));
+  const безДанных = ошибочные.filter(id => !кеш[id]);
+
+  let текст;
+  if (безДанных.length === 0 && сКешем.length > 0) {
+    // Все ошибочные места показывают кешированные данные
+    const минДата = Math.min(...сКешем.map(id => кешДаты[id] || 0).filter(Boolean));
+    текст = `⏱ Сервис погоды недоступен. Показаны данные от ${форматДатуКеша(минДата || 0)}`;
+  } else if (сКешем.length > 0) {
+    // Часть мест с кешем, часть — без данных
+    const минДата = Math.min(...сКешем.map(id => кешДаты[id] || 0).filter(Boolean));
+    текст = `⏱ Частично кешированные данные от ${форматДатуКеша(минДата || 0)}, API недоступен`;
+  } else {
+    // Нет никакого кеша — первый запуск или данные слишком старые
+    const первоеСообщение = Object.values(ошибкиПогоды)[0] || 'Нет ответа';
+    текст = `⚠️ Сервис погоды недоступен: ${первоеСообщение}`;
+  }
+
+  баннер.style.display = 'flex';
+  баннер.innerHTML = `${текст} <button onclick="повторитьПогоду()">🔄 Повторить</button>`;
+}
+
+// ============ СОЗДАНИЕ ИКОНКИ МАРКЕРА ============
+function создатьИконку(spot, pct, загр, выбр) {
+  let цвет, фон, содержимое;
+  const ошибка = ошибкиПогоды[spot.id];
+  if (ошибка) {
+    цвет = '#f0a500';
+    фон = 'rgba(240,165,0,0.08)';
+    содержимое = `<span style="font-size:18px;line-height:1" title="${ошибка}">⚠️</span>`;
+  } else if (загр) {
+    цвет = 'var(--blue)';
+    фон = 'rgba(77,166,255,0.08)';
+    содержимое = `<div style="width:18px;height:18px;border-radius:50%;border:2px solid rgba(77,166,255,0.3);border-top-color:#4da6ff;animation:spin 1s linear infinite"></div>`;
+  } else if (!spot.fish?.includes(выбРыба)) {
+    цвет = 'var(--text-3)';
+    фон = 'rgba(255,255,255,0.04)';
+    содержимое = `<span style="font-size:16px;color:var(--text-3);line-height:1">—</span>`;
+  } else {
+    цвет = pct >= 70 ? '#00d68f' : pct >= 40 ? '#f0a500' : '#ff4d4d';
+    фон = pct >= 70 ? 'rgba(0,214,143,0.13)' : pct >= 40 ? 'rgba(255,165,0,0.13)' : 'rgba(255,77,77,0.13)';
+    содержимое = `<span style="font-size:14px;font-weight:700;color:${цвет};line-height:1;font-family:Inter,sans-serif">${pct}%</span>`;
+  }
+  const рамкаСтиль = выбр ? `border:2px solid rgba(255,255,255,0.9);box-shadow:0 0 0 3px ${цвет}44,0 4px 16px rgba(0,0,0,0.25);` : `border:2px solid ${цвет}88;`;
+  const ярлык = spot.name.length > 14 ? spot.name.slice(0, 13) + '…' : spot.name;
+  return L.divIcon({
+    className: '',
+    html: `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer"><div style="width:52px;height:52px;border-radius:50%;background:${фон};${рамкаСтиль}display:flex;align-items:center;justify-content:center;transition:all 0.2s ease;backdrop-filter:blur(6px)">${содержимое}</div><div style="background:rgba(26,35,50,0.92);color:rgba(232,240,254,0.88);font-size:10px;font-weight:500;padding:2px 7px;border-radius:6px;white-space:nowrap;border:1px solid rgba(255,255,255,0.08);font-family:Inter,sans-serif;backdrop-filter:blur(4px)">${ярлык}</div></div>`,
+    iconAnchor: [26, 26],
+  });
+}
+
+// ============ ОБНОВЛЕНИЕ МАРКЕРОВ ============
+function обновитьМаркеры() {
+  const места = загрузитьМеста();
+  const рыбыД = загрузитьРыбДанные();
+  const подсказка = document.getElementById('подсказка-пусто');
+  if (подсказка) подсказка.style.display = места.length === 0 ? 'block' : 'none';
+  Object.keys(маркеры).forEach(id => {
+    if (!места.find(s => s.id === id)) {
+      карта.removeLayer(маркеры[id]);
+      delete маркеры[id];
+    }
+  });
+  места.forEach(spot => {
+    const п = кеш[spot.id];
+    const загр = !п && !ошибкиПогоды[spot.id];
+    const pct = (п && spot.fish?.includes(выбРыба)) ? рассчитатьКлёв(выбРыба, п, spot.waterType) : null;
+    const выбр = выбМесто?.id === spot.id;
+    const строкиРыб = (spot.fish || []).map(идР => {
+      if (!п) return '';
+      const pct2 = рассчитатьКлёв(идР, п, spot.waterType);
+      const ц = цветПцт(pct2);
+      const рыбаИнф = рыбыД[идР];
+      const имя = рыбаИнф ? (рыбаИнф.иконка + ' ' + рыбаИнф.название) : идР;
+      return `<div class="поп-рыба-стр"><span class="поп-рыба-им">${имя}</span><div class="поп-рыба-бар"><div class="поп-рыба-зап" style="width:${pct2}%;background:${ц}"></div></div><span class="поп-рыба-пцт" style="color:${ц}">${pct2}%</span></div>`;
+    }).join('');
+    const попапHTML = `<div class="поп-загол">${spot.name}</div>${строкиРыб || '<div style="color:var(--text-3);font-size:12px">Нет данных погоды</div>'}`;
+    if (маркеры[spot.id]) {
+      маркеры[spot.id].setIcon(создатьИконку(spot, pct, загр, выбр));
+      if (п) маркеры[spot.id].setPopupContent(попапHTML);
+    } else {
+      const м = L.marker([spot.lat, spot.lng], { icon: создатьИконку(spot, null, true, false) }).addTo(карта);
+      м.bindPopup(попапHTML, { maxWidth: 240 });
+      м.on('click', () => выбратьМесто(spot));
+      маркеры[spot.id] = м;
+    }
+  });
+}
+
+// ============ ВЫБОР МЕСТА ============
+function выбратьМесто(spot) {
+  выбМесто = spot;
+  обновитьМаркеры();
+  отрисоватьКарточкуМеста();
+  отрисоватьПрогноз();
+  отрисоватьДавление();
+  отрисоватьНеделю();
+  отрисоватьЛучшийДень();
+}
+
+// ============ ОТРИСОВКА КАРТОЧКИ МЕСТА ============
+function отрисоватьКарточкуМеста() {
+  const карточка = document.getElementById('карточка-места');
+  const тело = document.getElementById('место-тело');
+  if (!выбМесто) { карточка.style.display = 'none'; return; }
+  карточка.style.display = 'block';
+  const типыД = загрузитьТипыВодоёмов();
+  const рыбыД = загрузитьРыбДанные();
+  const типНазв = типыД[выбМесто.waterType]?.название || выбМесто.waterType;
+  const типИконки = { river: '🏞️', small_river: '🌿', reservoir: '💧', natural_lake: '🏔️', artificial_lake: '🌊', quarry: '⛏️' };
+  const рыбыТеги = (выбМесто.fish || []).map(идР => {
+    const р = рыбыД[идР];
+    return `<span class="место-рыба-тег">${р?.иконка || ''} ${р?.название || идР}</span>`;
+  }).join('');
+  тело.innerHTML = `<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px"><div><div class="место-назв">${типИконки[выбМесто.waterType] || '📍'} ${выбМесто.name}</div><div class="место-тип">${типНазв}</div></div><button class="место-кн-ред" onclick="открытьРедакторМеста()">✏️ Изменить</button></div>${рыбыТеги ? `<div class="место-рыбы">${рыбыТеги}</div>` : ''}${выбМесто.notes ? `<div class="место-заметки">${выбМесто.notes}</div>` : ''}`;
+}
+
+// ============ ОТРИСОВКА ПРОГНОЗА ============
+function отрисоватьПрогноз() {
+  const карточка = document.getElementById('прог-карточка');
+  const эл = document.getElementById('прог-тело');
+  if (!выбМесто) { карточка.style.display = 'none'; return; }
+  карточка.style.display = 'block';
+  if (!кеш[выбМесто.id]) {
+    показатьСАнимацией(эл, `
+      <div class="скелет" style="height:16px;width:50%;margin-bottom:12px"></div>
+      <div class="скелет" style="height:40px;width:35%;margin:0 auto 10px"></div>
+      <div class="скелет" style="height:6px;margin-bottom:8px"></div>
+      <div class="скелет" style="height:14px;width:70%;margin:0 auto"></div>
+    `);
+    return;
+  }
+  if (выбМесто.fish && !выбМесто.fish.includes(выбРыба)) {
+    карточка.style.display = 'block';
+    показатьСАнимацией(эл, `<div class="прог-пусто"><span class="пусто-иконка">🚫</span>Эта рыба не водится<br>в данном месте</div>`);
+    return;
+  }
+  карточка.style.display = 'block';
+  const п = кеш[выбМесто.id];
+  const рыбыД = загрузитьРыбДанные();
+  const р = рыбыД[выбРыба];
+  if (!р) return;
+  const шанс = рассчитатьКлёв(выбРыба, п, выбМесто.waterType);
+  const цвет = цветПцт(шанс);
+  const вд   = вердиктПцт(шанс);
+
+  // Анализ факторов (deltaы от базы 50)
+  const дТ = { давление: р.давление[п.трендДавл] || 0, темп: calcTempScore(р, п.темпВоды),
+    время: р.время[п.времяСуток] || 0, ветер: calcWindScore(р, п.ветерМс),
+    прозр: р.прозрачность[п.прозрКлюч] || 0, луна: р.луна[п.лунаКлюч] || 0 };
+
+  const ДАВЛ_СИМВ = { стабильное:'→', падает:'↓', резко_падает:'↓↓', растёт:'↑', резко_растёт:'↑↑' };
+  const ДАВЛ_НАЗВ = { стабильное:'стабильное', падает:'падает', резко_падает:'резко падает', растёт:'растёт', резко_растёт:'резко растёт' };
+  const ВРЕМЯ_СИМВ = { утро:'🌅', день:'☀️', вечер:'🌆', ночь:'🌙' };
+  const ВРЕМЯ_НАЗВ = { утро:'Утро', день:'День', вечер:'Вечер', ночь:'Ночь' };
+  const стВ = ['С','СВ','В','ЮВ','Ю','ЮЗ','З','СЗ'][Math.round((п.ветерГрад || 0) / 45) % 8];
+
+  const факторы = [];
+  if (дТ.давление >= 15)  факторы.push({ кл:'плюс',  ик:'📊', т:`Давление ${ДАВЛ_НАЗВ[п.трендДавл]} — рыба активна` });
+  else if (дТ.давление > 0) факторы.push({ кл:'нейтр', ик:'📊', т:`Давление ${ДАВЛ_НАЗВ[п.трендДавл]}` });
+  else if (дТ.давление <= -25) факторы.push({ кл:'минус', ик:'📊', т:`Резкое падение давления — рыба на глубине` });
+  else if (дТ.давление < 0) факторы.push({ кл:'минус', ик:'📊', т:`Давление ${ДАВЛ_НАЗВ[п.трендДавл]} — снижает активность` });
+
+  const тВ = Math.round(п.темпВоды);
+  if (дТ.темп >= 20)  факторы.push({ кл:'плюс',  ик:'🌡️', т:`Вода ~${тВ}°C — идеальная температура` });
+  else if (дТ.темп > 0) факторы.push({ кл:'нейтр', ик:'🌡️', т:`Вода ~${тВ}°C — приемлемо` });
+  else if (дТ.темп <= -30) факторы.push({ кл:'минус', ик:'🌡️', т:`Вода ~${тВ}°C — рыба малоактивна` });
+  else if (дТ.темп < 0) факторы.push({ кл:'минус', ик:'🌡️', т:`Вода ~${тВ}°C — прохладно для этой рыбы` });
+
+  if (дТ.время >= 15)  факторы.push({ кл:'плюс',  ик:ВРЕМЯ_СИМВ[п.времяСуток], т:`${ВРЕМЯ_НАЗВ[п.времяСуток]} — пиковая активность` });
+  else if (дТ.время > 0) факторы.push({ кл:'нейтр', ик:ВРЕМЯ_СИМВ[п.времяСуток], т:`${ВРЕМЯ_НАЗВ[п.времяСуток]} — неплохое время` });
+  else if (дТ.время < -5) факторы.push({ кл:'минус', ик:ВРЕМЯ_СИМВ[п.времяСуток], т:`${ВРЕМЯ_НАЗВ[п.времяСуток]} — не лучшее время для этой рыбы` });
+
+  const вт = Math.round(п.ветерМс);
+  if (дТ.ветер >= 10)  факторы.push({ кл:'плюс',  ик:'💨', т:`Ветер ${вт} м/с ${стВ} — благоприятно` });
+  else if (дТ.ветер > 0) факторы.push({ кл:'нейтр', ик:'💨', т:`Ветер ${вт} м/с ${стВ}` });
+  else if (дТ.ветер <= -15) факторы.push({ кл:'минус', ик:'💨', т:`Сильный ветер ${вт} м/с — рыба уходит в укрытие` });
+  else if (дТ.ветер < 0) факторы.push({ кл:'минус', ик:'💨', т:`Ветер ${вт} м/с — незначительно снижает клёв` });
+
+  if (дТ.прозр >= 8)  факторы.push({ кл:'плюс',  ик:п.прозрСимв, т:`Вода ${п.прозрНазв} — хорошая видимость` });
+  else if (дТ.прозр > 0) факторы.push({ кл:'нейтр', ик:п.прозрСимв, т:`Вода ${п.прозрНазв}` });
+  else if (дТ.прозр < -10) факторы.push({ кл:'минус', ик:п.прозрСимв, т:`Мутная вода — рыба плохо видит приманку` });
+
+  if (дТ.луна >= 12)  факторы.push({ кл:'плюс',  ик:п.лунаСимв, т:`${п.лунаНазв} — очень благоприятная фаза` });
+  else if (дТ.луна >= 5) факторы.push({ кл:'плюс', ик:п.лунаСимв, т:`${п.лунаНазв} — благоприятно` });
+  else if (дТ.луна <= -8) факторы.push({ кл:'минус', ик:п.лунаСимв, т:`${п.лунаНазв} — неблагоприятная фаза` });
+
+  const фактHTML = факторы.map(ф =>
+    `<div class="фактор ${ф.кл}"><span class="ф-иконка">${ф.ик}</span><span class="ф-текст">${ф.т}</span></div>`
+  ).join('');
+
+  const источник = кешИсточник[выбМесто.id];
+  const стале = ошибкиПогоды[выбМесто.id] && !кешСвежий.has(выбМесто.id) && кеш[выбМесто.id];
+  const сталеЧип = стале
+    ? `<div class="кеш-чип">🕒 данные от ${форматДатуКеша(кешДаты[выбМесто.id] || 0)}${источник ? ' · ' + источник : ''}</div>`
+    : '';
+  const классБейджа = источник === 'Open-Meteo' ? 'open-meteo' : источник === 'met.no' ? 'met-no' : '';
+  const бейдж = источник && !стале
+    ? `<span class="источник-бейдж ${классБейджа}">${источник}</span>`
+    : '';
+  показатьСАнимацией(эл, `
+    <div class="прог-шапка">
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <div class="прог-локация">${выбМесто.name}</div>
+        ${бейдж}
+      </div>
+      <div class="прог-рыба">${р.название}</div>
+      ${сталеЧип}
+    </div>
+    <div class="прог-пцт" style="color:${цвет}">${шанс}%</div>
+    <div class="прог-бар-трек">
+      <div class="прог-бар-зап" style="width:${шанс}%;background:${цвет}"></div>
+    </div>
+    <div class="прог-вердикт" style="padding:5px 10px;border-radius:8px;background:${вд.фон};color:${вд.цвет}">${вд.текст}</div>
+    <details class="подробнее">
+      <summary>Подробнее о факторах</summary>
+      <div class="факторы-список">${фактHTML}</div>
+    </details>
+    <div class="совет-блок">
+      🎣 <b>Снасти:</b> ${р.снасти || '—'}<br>
+      🪱 <b>Насадки:</b> ${р.насадки || '—'}<br>
+      📍 <b>Место:</b> ${р.место || '—'}
+    </div>
+  `);
+}
+
+// ============ ОТРИСОВКА ДАВЛЕНИЯ ============
+function отрисоватьДавление() {
+  const эл = document.getElementById('давл-тело');
+  if (!выбМесто || !кеш[выбМесто.id]) {
+    показатьСАнимацией(эл, `
+      <div style="display:flex;gap:12px;align-items:center">
+        <div class="скелет" style="width:80px;height:80px;border-radius:50%"></div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+          <div class="скелет" style="height:30px;width:80%"></div>
+          <div class="скелет" style="height:13px;width:55%"></div>
+        </div>
+      </div>
+      <div class="скелет" style="height:48px;border-radius:8px;margin-top:14px"></div>
+    `);
+    return;
+  }
+  const п     = кеш[выбМесто.id];
+  const давл  = Math.round(п.давление);
+  const тренд = п.трендДавл;
+  const ДАВЛ_СИМВ = { стабильное:'→', падает:'↓', резко_падает:'↓↓', растёт:'↑', резко_растёт:'↑↑' };
+  const ДАВЛ_НАЗВ = { стабильное:'стабильное', падает:'падает', резко_падает:'резко падает', растёт:'растёт', резко_растёт:'резко растёт' };
+  const давлЦвет = тренд === 'резко_падает' ? 'var(--red)' :
+                   тренд === 'падает'        ? 'var(--yellow)' :
+                   тренд === 'стабильное'    ? 'var(--green)' : 'var(--blue)';
+
+  // SVG-гауге 960–1040 гПа
+  const пцт = Math.max(0.01, Math.min(0.99, (давл - 960) / 80));
+  const cx=80, cy=72, r=54;
+  const θ = (1 - пцт) * Math.PI;
+  const xV = (cx + r * Math.cos(θ)).toFixed(1);
+  const yV = (cy - r * Math.sin(θ)).toFixed(1);
+
+  const отНормы = давл - 1013;
+  const измТекст = п.давлИзм != null
+    ? (п.давлИзм >= 0 ? `+${п.давлИзм}` : `${п.давлИзм}`) + ' гПа за 24ч'
+    : (Math.abs(отНормы) < 3 ? 'норма' : `${отНормы>0?'+':''}${отНормы} от нормы`);
+
+  // 7-дневный линейный график давления
+  let график7Дней = '';
+  if (п.часВремя && п.часДавл) {
+    const сегодняСтр = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Almaty' }).format(new Date());
+    const ДНИРУ = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+    const поДням = {};
+    п.часВремя.forEach((t, i) => {
+      const д = t.slice(0, 10);
+      if (!поДням[д]) поДням[д] = [];
+      if (п.часДавл[i] != null) поДням[д].push(п.часДавл[i]);
+    });
+    const дни7 = Object.keys(поДням).sort().filter(д => д >= сегодняСтр).slice(0, 7);
+    if (дни7.length >= 2) {
+      const средние = дни7.map(д => {
+        const arr = поДням[д];
+        return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+      });
+      const валидные = средние.filter(v => v != null);
+      if (валидные.length >= 2) {
+        const W = 260, H = 44;
+        const мин = Math.min(...валидные) - 2;
+        const макс = Math.max(...валидные) + 2;
+        const диап = макс - мин || 1;
+        const шагX = W / (дни7.length - 1);
+        const точки = средние.map((v, j) => v != null
+          ? `${(j * шагX).toFixed(1)},${(H - ((v - мин) / диап) * H * 0.85 - H * 0.075).toFixed(1)}`
+          : null).filter(Boolean);
+        const зап = [...точки, `${W},${H}`, `0,${H}`].join(' ');
+        const нзвДней = дни7.map((д, i) => {
+          const дата = new Date(д + 'T12:00:00+05:00');
+          return i === 0 ? 'Сег' : ДНИРУ[дата.getDay()];
+        });
+        const значения = средние.map(v => v != null ? Math.round(v) : '—');
+        // Точки на линии с подписями
+        const кружки = средние.map((v, j) => {
+          if (v == null) return '';
+          const x = (j * шагX).toFixed(1);
+          const y = (H - ((v - мин) / диап) * H * 0.85 - H * 0.075).toFixed(1);
+          const цвCircle = j === 0 ? давлЦвет : 'var(--text-3)';
+          return `<circle cx="${x}" cy="${y}" r="2.5" fill="${цвCircle}" stroke="var(--bg-card)" stroke-width="1"/>`;
+        }).join('');
+        график7Дней = `
+          <div class="давл-7дней">
+            <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" style="overflow:visible">
+              <polygon points="${зап}" fill="${давлЦвет}18" stroke="none"/>
+              <polyline points="${точки.join(' ')}" fill="none" stroke="${давлЦвет}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+              ${кружки}
+            </svg>
+            <div class="давл-7дней-нзв">${нзвДней.map((н, i) => `<span style="${i===0 ? 'color:var(--green);font-weight:700' : ''}">${н}</span>`).join('')}</div>
+            <div class="давл-7дней-метка"><span>${Math.round(мин + 2)} гПа</span><span>прогноз 7 дней</span><span>${Math.round(макс - 2)} гПа</span></div>
+          </div>`;
+      }
+    }
+  }
+
+  показатьСАнимацией(эл, `
+    <div style="display:flex;align-items:center;gap:16px">
+      <svg viewBox="0 0 160 88" width="130" height="70">
+        <path d="M ${cx-r} ${cy} A ${r} ${r} 0 0 1 ${cx+r} ${cy}"
+              fill="none" stroke="var(--bg-page)" stroke-width="8" stroke-linecap="round"/>
+        <path d="M ${cx-r} ${cy} A ${r} ${r} 0 0 1 ${xV} ${yV}"
+              fill="none" stroke="${давлЦвет}" stroke-width="8" stroke-linecap="round"/>
+        <text x="${cx-r}" y="${cy+14}" fill="var(--text-3)" font-size="9" font-family="Inter,sans-serif" text-anchor="middle">960</text>
+        <text x="${cx}"   y="12"       fill="var(--text-3)" font-size="9" font-family="Inter,sans-serif" text-anchor="middle">1013</text>
+        <text x="${cx+r}" y="${cy+14}" fill="var(--text-3)" font-size="9" font-family="Inter,sans-serif" text-anchor="middle">1040</text>
+        <text x="${cx}" y="${cy-6}"  fill="var(--text-1)"  font-size="22" font-weight="800" font-family="Inter,sans-serif" text-anchor="middle">${давл}</text>
+        <text x="${cx}" y="${cy+10}" fill="${давлЦвет}" font-size="11" font-family="Inter,sans-serif" text-anchor="middle">гПа</text>
+      </svg>
+      <div style="flex:1">
+        <div class="давл-тренд" style="font-size:16px;font-weight:700;color:${давлЦвет}">${ДАВЛ_СИМВ[тренд]} ${ДАВЛ_НАЗВ[тренд]}</div>
+        <div class="давл-изм">${измТекст}</div>
+      </div>
+    </div>
+    ${график7Дней}
+  `);
+}
+
+// ============ ОТРИСОВКА ЛУЧШЕГО ДНЯ ============
+function отрисоватьЛучшийДень() {
+  const карточка = document.getElementById('лучший-день-карточка');
+  const эл = document.getElementById('лучший-день-тело');
+  if (!выбМесто || !кеш[выбМесто.id]) { карточка.style.display = 'none'; return; }
+  const рыбыД = загрузитьРыбДанные();
+  if (!рыбыД[выбРыба] || !выбМесто.fish?.includes(выбРыба)) { карточка.style.display = 'none'; return; }
+  карточка.style.display = 'block';
+  const п = кеш[выбМесто.id];
+  const daily = п.daily;
+  if (!daily) return;
+  const сегодняСтр = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Almaty' }).format(new Date());
+  const старт = Math.max(0, daily.time.findIndex(d => d >= сегодняСтр));
+  const дни = daily.time.slice(старт, старт + 7);
+  const поДням = {};
+  п.часВремя.forEach((t, i) => {
+    const д = t.slice(0, 10);
+    if (!поДням[д]) поДням[д] = [];
+    if (п.часДавл[i] != null) поДням[д].push(п.часДавл[i]);
+  });
+  const ДНИРУ = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+  const прогнозы = дни.map((датаСтр, i) => {
+    const avgДавл = поДням[датаСтр]?.length ? поДням[датаСтр].reduce((a, b) => a + b, 0) / поДням[датаСтр].length : null;
+    const предыдДавл = i > 0 && поДням[дни[i - 1]]?.length ? поДням[дни[i - 1]].reduce((a, b) => a + b, 0) / поДням[дни[i - 1]].length : avgДавл;
+    let трендДавл = 'стабильное';
+    if (avgДавл != null && предыдДавл != null) {
+      const δ = avgДавл - предыдДавл;
+      if (Math.abs(δ) < 2) трендДавл = 'стабильное';
+      else if (δ < -5) трендДавл = 'резко_падает';
+      else if (δ < -2) трендДавл = 'падает';
+      else if (δ > 5) трендДавл = 'резко_растёт';
+      else трендДавл = 'растёт';
+    }
+    const шанс = рассчитатьКлёвДень(выбРыба, { трендДавл, темпМакс: daily.temperature_2m_max[старт + i], ветер: daily.windspeed_10m_max[старт + i], осадки: daily.precipitation_sum[старт + i] || 0, датаСтр }, выбМесто.waterType);
+    return { датаСтр, шанс, код: (daily.weather_code || daily.weathercode || [])[старт + i], темп: daily.temperature_2m_max[старт + i], трендДавл, давлСимв: { стабильное: '→', падает: '↓', резко_падает: '↓↓', растёт: '↑', резко_растёт: '↑↑' }[трендДавл] };
+  });
+  const максШанс = Math.max(...прогнозы.map(д => д.шанс));
+  const строки = прогнозы.map((д, i) => {
+    const лучший = д.шанс === максШанс;
+    const дата = new Date(д.датаСтр + 'T12:00:00+05:00');
+    const нзв = i === 0 ? 'Сег' : ДНИРУ[дата.getDay()];
+    const деньЧисло = дата.getDate();
+    const мес = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'][дата.getMonth()];
+    const датаТекст = i === 0 ? 'Сегодня' : `${нзв} ${деньЧисло} ${мес}`;
+    const цвет = цветПцт(д.шанс);
+    return `<div class="лд-стр ${лучший ? 'лучший' : ''}"><span class="лд-дата">${датаТекст}${лучший ? ' ⭐' : ''}</span><span class="лд-погода">${погодаЭмодзи(д.код)}</span><span class="лд-темп">+${Math.round(д.темп)}°</span><span class="лд-давл">${д.давлСимв} давл.</span><span class="лд-пцт" style="color:${цвет}">${д.шанс}%</span><div class="лд-бар-трек"><div class="лд-бар-зап" style="width:${д.шанс}%;background:${цвет}"></div></div></div>`;
+  }).join('');
+  показатьСАнимацией(эл, строки);
+}
+
+// ============ ОТРИСОВКА НЕДЕЛИ ============
+function отрисоватьНеделю() {
+  const эл = document.getElementById('неделя-тело');
+  if (!выбМесто || !кеш[выбМесто.id]?.daily) {
+    показатьСАнимацией(эл, `
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
+        ${Array(7).fill('<div class="скелет" style="height:96px;border-radius:8px"></div>').join('')}
+      </div>
+    `);
+    return;
+  }
+  const daily = кеш[выбМесто.id].daily;
+  const сегодняСтр = new Intl.DateTimeFormat('en-CA', { timeZone:'Asia/Almaty' }).format(new Date());
+  const старт = Math.max(0, daily.time.findIndex(d => d >= сегодняСтр));
+  const ДНИ_РУ = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+  const дни   = daily.time.slice(старт, старт + 7);
+  const максТ = daily.temperature_2m_max.slice(старт, старт + 7);
+  const минТ  = daily.temperature_2m_min.slice(старт, старт + 7);
+  const коды  = (daily.weather_code || daily.weathercode || []).slice(старт, старт + 7);
+  const ос    = (daily.precipitation_probability_max || []).slice(старт, старт + 7);
+
+  const колонки = дни.map((дата, i) => {
+    const д = new Date(дата + 'T12:00:00+05:00');
+    const нзв = i === 0 ? 'Сег' : ДНИ_РУ[д.getDay()];
+    const осПр = ос[i] != null ? ос[i] : null;
+    const осЦв = осПр == null ? 'color:var(--text-3)' : осПр >= 50 ? 'color:var(--blue)' : осПр >= 30 ? 'color:#80b0f0' : 'color:var(--text-3)';
+    const осТекст = осПр != null ? `${осПр}%` : '—';
+    return `<div class="день-кол ${i === 0 ? 'сегодня' : ''}">
+      <span class="${i === 0 ? 'день-нзв сег' : 'день-нзв'}">${нзв}</span>
+      <span class="день-ик">${погодаЭмодзи(коды[i])}</span>
+      <span class="день-мкс">${Math.round(максТ[i])}°</span>
+      <span class="день-мин">${Math.round(минТ[i])}°</span>
+      <span class="день-ос" style="${осЦв}">${осТекст}</span>
+    </div>`;
+  }).join('');
+  показатьСАнимацией(эл, `<div class="неделя-сетка">${колонки}</div>`);
+}
+
+// ============ FAB И РЕЖИМ ДОБАВЛЕНИЯ ============
+function переключитьРежимДобавления() {
+  режимДобавления = !режимДобавления;
+  const fab = document.getElementById('fab-добавить');
+  const подск = document.getElementById('подсказка-добавления');
+  if (режимДобавления) {
+    fab.classList.add('активен');
+    fab.textContent = '✕ Отмена';
+    подск.style.display = 'block';
+    карта.getContainer().style.cursor = 'crosshair';
+  } else {
+    fab.classList.remove('активен');
+    fab.textContent = '+ Добавить место';
+    подск.style.display = 'none';
+    карта.getContainer().style.cursor = '';
+  }
+}
+
+// ============ ИНИЦИАЛИЗАЦИЯ ============
+function инициализировать() {
+  инициализироватьДанные();
+  карта = L.map('map', { zoomControl: false, scrollWheelZoom: true }).setView([43.84, 76.72], 10);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri' }).addTo(карта);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', { attribution: '© CartoDB', opacity: 0.85 }).addTo(карта);
+  обновитьВремя();
+  setInterval(обновитьВремя, 60000);
+  обновитьКнопкиРыбы();
+
+  // Подключаем все обработчики сразу — до загрузки погоды
+  document.getElementById('fab-добавить').addEventListener('click', переключитьРежимДобавления);
+  document.getElementById('кн-настройки').addEventListener('click', открытьНастройки);
+  карта.on('click', function(e) {
+    if (!режимДобавления) return;
+    const {lat, lng} = e.latlng;
+    переключитьРежимДобавления();
+    открытьМодалМеста(null, lat, lng);
+  });
+  document.getElementById('модал-место-оверлей').addEventListener('click', function(e) {
+    if (e.target === this) закрытьМодалМеста();
+  });
+  document.getElementById('модал-настройки-оверлей').addEventListener('click', function(e) {
+    if (e.target === this) закрытьНастройки();
+  });
+
+  // Восстановить кеш погоды из прошлой сессии → данные сразу видны до загрузки API
+  const сохрКеш = загрузитьКешПогодыLS();
+  if (сохрКеш) {
+    Object.entries(сохрКеш).forEach(([id, запись]) => {
+      if (запись?.data) { кеш[id] = запись.data; кешДаты[id] = запись.savedAt || 0; if (запись.источник) кешИсточник[id] = запись.источник; }
+    });
+    обновитьМаркеры();
+  }
+  // Сохранять кеш при закрытии/уходе со страницы
+  window.addEventListener('beforeunload', сохранитьКешПогодыLS);
+
+  загрузитьПогоду();
+  setInterval(загрузитьПогоду, 30 * 60000);
+}
+
+инициализировать();
+  </script>
+</body>
+</html>
