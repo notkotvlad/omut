@@ -465,6 +465,11 @@
     .ветер-бар-кол { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 1px; }
     .ветер-бар { width: 100%; border-radius: 3px 3px 0 0; min-height: 3px; }
     .ветер-бар-стрел { font-size: 9px; line-height: 1; flex-shrink: 0; }
+    /* ── Столбчатый график давления ── */
+    .давл-бары { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; align-items: end; height: 56px; margin-bottom: 4px; }
+    .давл-бар-кол { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 1px; }
+    .давл-бар { width: 100%; border-radius: 3px 3px 0 0; min-height: 3px; opacity: 0.85; }
+    .давл-бар-знач { font-size: 7.5px; font-weight: 600; line-height: 1; flex-shrink: 0; }
     .ветер-7дней-нзв { display: flex; }
     .ветер-7дней-нзв span { font-size: 9px; color: var(--text-3); text-align: center; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; }
     .ветер-7дней-метка { display: flex; justify-content: space-between; margin-top: 3px; }
@@ -1081,7 +1086,7 @@ async function запроситьПогоду(spot, signal) {
     'https://api.open-meteo.com/v1/forecast',
     `?latitude=${spot.lat}&longitude=${spot.lng}`,
     '&current=temperature_2m,pressure_msl,windspeed_10m,winddirection_10m,precipitation',
-    '&hourly=pressure_msl,precipitation,temperature_2m',
+    '&hourly=pressure_msl,precipitation,temperature_2m,soil_temperature_6cm',
     '&daily=weather_code,temperature_2m_max,temperature_2m_min',
     ',precipitation_sum,precipitation_probability_max,windspeed_10m_max,winddirection_10m_dominant',
     '&timezone=Asia%2FAlmaty&past_days=2&forecast_days=7',
@@ -1111,12 +1116,14 @@ async function запроситьПогоду(spot, signal) {
   const daily = д.daily;
   if (daily && !daily.weather_code && daily.weathercode) daily.weather_code = daily.weathercode;
 
+  const почвТемп = iТек >= 0 ? д.hourly.soil_temperature_6cm?.[iТек] : null;
+
   return {
     темпВоздух,
     давление:    д.current.pressure_msl,
     ветерМс:     д.current.windspeed_10m,
     ветерГрад:   д.current.winddirection_10m,
-    темпВоды:    getТемпВоды(темпВоздух),
+    темпВоды:    почвТемп != null ? Math.max(0.5, почвТемп) : getТемпВоды(темпВоздух),
     трендДавл,
     давлИзм,
     прозрКлюч:   прозр.ключ,
@@ -1640,37 +1647,28 @@ function отрисоватьДавление() {
       });
       const валидные = средние.filter(v => v != null);
       if (валидные.length >= 2) {
-        const W = 260, H = 44;
-        const мин = Math.min(...валидные) - 2;
-        const макс = Math.max(...валидные) + 2;
+        const мин = Math.min(...валидные);
+        const макс = Math.max(...валидные);
         const диап = макс - мин || 1;
-        const шагX = W / (дни7.length - 1);
-        const точки = средние.map((v, j) => v != null
-          ? `${(j * шагX).toFixed(1)},${(H - ((v - мин) / диап) * H * 0.85 - H * 0.075).toFixed(1)}`
-          : null).filter(Boolean);
-        const зап = [...точки, `${W},${H}`, `0,${H}`].join(' ');
         const нзвДней = дни7.map(д => {
           const дата = new Date(д + 'T12:00:00+05:00');
           return { нзв: ДНИРУ[дата.getDay()], числоМес: `${дата.getDate()}.${String(дата.getMonth()+1).padStart(2,'0')}` };
         });
-        const значения = средние.map(v => v != null ? Math.round(v) : '—');
-        // Точки на линии с подписями
-        const кружки = средние.map((v, j) => {
-          if (v == null) return '';
-          const x = (j * шагX).toFixed(1);
-          const y = (H - ((v - мин) / диап) * H * 0.85 - H * 0.075).toFixed(1);
-          const цвCircle = j === 0 ? давлЦвет : 'var(--text-3)';
-          return `<circle cx="${x}" cy="${y}" r="2.5" fill="${цвCircle}" stroke="var(--bg-card)" stroke-width="1"/>`;
+        const бары = средние.map((v, j) => {
+          if (v == null) return `<div class="давл-бар-кол"><span class="давл-бар-знач" style="color:var(--text-3)">—</span><div class="давл-бар" style="height:4px;background:var(--border-md)"></div></div>`;
+          const val = Math.round(v);
+          const высота = Math.max(6, Math.round(((v - мин) / диап) * 40) + 8);
+          const цв = val < 1005 ? 'var(--red)' : val < 1013 ? 'var(--yellow)' : val < 1021 ? 'var(--green)' : 'var(--blue)';
+          return `<div class="давл-бар-кол">
+            <span class="давл-бар-знач" style="color:${цв}">${val}</span>
+            <div class="давл-бар" style="height:${высота}px;background:${цв}"></div>
+          </div>`;
         }).join('');
         график7Дней = `
           <div class="давл-7дней">
-            <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" style="overflow:visible">
-              <polygon points="${зап}" fill="${давлЦвет}18" stroke="none"/>
-              <polyline points="${точки.join(' ')}" fill="none" stroke="${давлЦвет}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
-              ${кружки}
-            </svg>
+            <div class="давл-бары">${бары}</div>
             <div class="давл-7дней-нзв">${нзвДней.map((н, i) => `<span style="${i===0 ? 'color:var(--green);font-weight:700' : ''}"><span>${н.нзв}</span><span style="color:var(--text-3);font-weight:400">${н.числоМес}</span></span>`).join('')}</div>
-            <div class="давл-7дней-метка"><span>${Math.round(мин + 2)} гПа</span><span>прогноз 7 дней</span><span>${Math.round(макс - 2)} гПа</span></div>
+            <div class="давл-7дней-метка"><span style="visibility:hidden">·</span><span>прогноз 7 дней, гПа</span><span style="visibility:hidden">·</span></div>
           </div>`;
       }
     }
