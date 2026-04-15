@@ -1608,7 +1608,8 @@ function отрисоватьДавление() {
     return;
   }
   const п     = кеш[выбМесто.id];
-  const давл  = Math.round(п.давление);
+  const ГПА_В_ММ = 0.75006;
+  const давлМм = Math.round(п.давление * ГПА_В_ММ);
   const тренд = п.трендДавл;
   const ДАВЛ_СИМВ = { стабильное:'→', падает:'↓', резко_падает:'↓↓', растёт:'↑', резко_растёт:'↑↑' };
   const ДАВЛ_НАЗВ = { стабильное:'стабильное', падает:'падает', резко_падает:'резко падает', растёт:'растёт', резко_растёт:'резко растёт' };
@@ -1616,17 +1617,18 @@ function отрисоватьДавление() {
                    тренд === 'падает'        ? 'var(--yellow)' :
                    тренд === 'стабильное'    ? 'var(--green)' : 'var(--blue)';
 
-  // SVG-гауге 960–1040 гПа
-  const пцт = Math.max(0.01, Math.min(0.99, (давл - 960) / 80));
+  // SVG-гауге 720–780 мм рт.ст. (≈ 960–1040 гПа)
+  const пцт = Math.max(0.01, Math.min(0.99, (давлМм - 720) / 60));
   const cx=80, cy=72, r=54;
   const θ = (1 - пцт) * Math.PI;
   const xV = (cx + r * Math.cos(θ)).toFixed(1);
   const yV = (cy - r * Math.sin(θ)).toFixed(1);
 
-  const отНормы = давл - 1013;
-  const измТекст = п.давлИзм != null
-    ? (п.давлИзм >= 0 ? `+${п.давлИзм}` : `${п.давлИзм}`) + ' гПа за 24ч'
-    : (Math.abs(отНормы) < 3 ? 'норма' : `${отНормы>0?'+':''}${отНормы} от нормы`);
+  const отНормы = давлМм - 760;
+  const давлИзмМм = п.давлИзм != null ? Math.round(п.давлИзм * ГПА_В_ММ * 10) / 10 : null;
+  const измТекст = давлИзмМм != null
+    ? (давлИзмМм >= 0 ? `+${давлИзмМм}` : `${давлИзмМм}`) + ' мм за 24ч'
+    : (Math.abs(отНормы) < 2 ? 'норма' : `${отНормы>0?'+':''}${отНормы} от нормы`);
 
   // 7-дневный линейный график давления
   let график7Дней = '';
@@ -1654,13 +1656,16 @@ function отрисоватьДавление() {
           const дата = new Date(д + 'T12:00:00+05:00');
           return { нзв: ДНИРУ[дата.getDay()], числоМес: `${дата.getDate()}.${String(дата.getMonth()+1).padStart(2,'0')}` };
         });
+        const миниМм = мин * ГПА_В_ММ;
+        const максиМм = макс * ГПА_В_ММ;
+        const диапМм = максиМм - миниМм || 1;
         const бары = средние.map((v, j) => {
           if (v == null) return `<div class="давл-бар-кол"><span class="давл-бар-знач" style="color:var(--text-3)">—</span><div class="давл-бар" style="height:4px;background:var(--border-md)"></div></div>`;
-          const val = Math.round(v);
-          const высота = Math.max(6, Math.round(((v - мин) / диап) * 40) + 8);
-          const цв = val < 1005 ? 'var(--red)' : val < 1013 ? 'var(--yellow)' : val < 1021 ? 'var(--green)' : 'var(--blue)';
+          const valМм = Math.round(v * ГПА_В_ММ);
+          const высота = Math.max(6, Math.round(((v * ГПА_В_ММ - миниМм) / диапМм) * 40) + 8);
+          const цв = valМм < 754 ? 'var(--red)' : valМм < 760 ? 'var(--yellow)' : valМм < 766 ? 'var(--green)' : 'var(--blue)';
           return `<div class="давл-бар-кол">
-            <span class="давл-бар-знач" style="color:${цв}">${val}</span>
+            <span class="давл-бар-знач" style="color:${цв}">${valМм}</span>
             <div class="давл-бар" style="height:${высота}px;background:${цв}"></div>
           </div>`;
         }).join('');
@@ -1668,7 +1673,7 @@ function отрисоватьДавление() {
           <div class="давл-7дней">
             <div class="давл-бары">${бары}</div>
             <div class="давл-7дней-нзв">${нзвДней.map((н, i) => `<span style="${i===0 ? 'color:var(--green);font-weight:700' : ''}"><span>${н.нзв}</span><span style="color:var(--text-3);font-weight:400">${н.числоМес}</span></span>`).join('')}</div>
-            <div class="давл-7дней-метка"><span style="visibility:hidden">·</span><span>прогноз 7 дней, гПа</span><span style="visibility:hidden">·</span></div>
+            <div class="давл-7дней-метка"><span style="visibility:hidden">·</span><span>прогноз 7 дней, мм рт.ст.</span><span style="visibility:hidden">·</span></div>
           </div>`;
       }
     }
@@ -1681,11 +1686,11 @@ function отрисоватьДавление() {
               fill="none" stroke="var(--bg-page)" stroke-width="8" stroke-linecap="round"/>
         <path d="M ${cx-r} ${cy} A ${r} ${r} 0 0 1 ${xV} ${yV}"
               fill="none" stroke="${давлЦвет}" stroke-width="8" stroke-linecap="round"/>
-        <text x="${cx-r}" y="${cy+14}" fill="var(--text-3)" font-size="9" font-family="Inter,sans-serif" text-anchor="middle">960</text>
-        <text x="${cx}"   y="12"       fill="var(--text-3)" font-size="9" font-family="Inter,sans-serif" text-anchor="middle">1013</text>
-        <text x="${cx+r}" y="${cy+14}" fill="var(--text-3)" font-size="9" font-family="Inter,sans-serif" text-anchor="middle">1040</text>
-        <text x="${cx}" y="${cy-6}"  fill="var(--text-1)"  font-size="22" font-weight="800" font-family="Inter,sans-serif" text-anchor="middle">${давл}</text>
-        <text x="${cx}" y="${cy+10}" fill="${давлЦвет}" font-size="11" font-family="Inter,sans-serif" text-anchor="middle">гПа</text>
+        <text x="${cx-r}" y="${cy+14}" fill="var(--text-3)" font-size="9" font-family="Inter,sans-serif" text-anchor="middle">720</text>
+        <text x="${cx}"   y="12"       fill="var(--text-3)" font-size="9" font-family="Inter,sans-serif" text-anchor="middle">760</text>
+        <text x="${cx+r}" y="${cy+14}" fill="var(--text-3)" font-size="9" font-family="Inter,sans-serif" text-anchor="middle">780</text>
+        <text x="${cx}" y="${cy-6}"  fill="var(--text-1)"  font-size="22" font-weight="800" font-family="Inter,sans-serif" text-anchor="middle">${давлМм}</text>
+        <text x="${cx}" y="${cy+10}" fill="${давлЦвет}" font-size="11" font-family="Inter,sans-serif" text-anchor="middle">мм</text>
       </svg>
       <div style="flex:1">
         <div class="давл-тренд" style="font-size:16px;font-weight:700;color:${давлЦвет}">${ДАВЛ_СИМВ[тренд]} ${ДАВЛ_НАЗВ[тренд]}</div>
