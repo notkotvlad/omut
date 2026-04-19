@@ -759,10 +759,22 @@
   <script>
 // ============ ИНИЦИАЛИЗАЦИЯ ДАННЫХ ============
 const ДЕФОЛТ_МЕСТА = [
-  {id:"spot_def_1",name:"Капчагай",lat:43.9114,lng:77.1203,waterType:"reservoir",fish:["плотва","карась","лещ","карп","судак","жерех"],notes:"",createdAt:1712345678000},
-  {id:"spot_def_2",name:"Река Или",lat:43.9311,lng:77.0816,waterType:"river",fish:["плотва","жерех","судак","лещ"],notes:"",createdAt:1712345678001},
-  {id:"spot_def_3",name:"Куртинское вдхр.",lat:43.8702,lng:76.3343,waterType:"reservoir",fish:["карась","лещ","карп","судак"],notes:"",createdAt:1712345678002},
-  {id:"spot_def_4",name:"Река Алматинка",lat:43.7438,lng:77.1014,waterType:"small_river",fish:["плотва","жерех"],notes:"",createdAt:1712345678003}
+  {id:"spot_def_1",name:"Скалы",lat:43.9114,lng:77.1203,waterType:"reservoir",fish:["плотва","карась","лещ","карп","судак","жерех"],notes:"",createdAt:1712345678000,weatherStationId:148,weatherRegionId:6},
+  {id:"spot_def_2",name:"Мертвые дачи",lat:43.9311,lng:77.0816,waterType:"river",fish:["плотва","карась","лещ","карп","судак","жерех"],notes:"",createdAt:1712345678001,weatherStationId:148,weatherRegionId:6},
+  {id:"spot_def_3",name:"Курты",lat:43.8702,lng:76.3343,waterType:"reservoir",fish:["плотва","карась","лещ","карп","судак"],notes:"",createdAt:1712345678002,weatherStationId:100,weatherRegionId:6},
+  {id:"spot_def_4",name:"Река Алматинка",lat:43.7438,lng:77.1014,waterType:"small_river",fish:["плотва","карась","лещ"],notes:"",createdAt:1712345678003,weatherStationId:147,weatherRegionId:6},
+  {id:"spot_1775478092212",name:"ИП «Карьерчик»",lat:43.7712,lng:77.1255,waterType:"quarry",fish:["плотва","карась","лещ","карп","судак"],notes:"",createdAt:1775478092212,weatherStationId:147,weatherRegionId:6},
+  {id:"spot_1776413856394",name:"1-я насосная",lat:43.9448,lng:77.3548,waterType:"reservoir",fish:["плотва","карась","лещ","карп","судак"],notes:"",createdAt:1776413856394,weatherStationId:148,weatherRegionId:6},
+  {id:"spot_1776413884519",name:"2-я насосная",lat:43.921,lng:77.4139,waterType:"reservoir",fish:["плотва","карась","лещ","карп","судак"],notes:"",createdAt:1776413884519,weatherStationId:148,weatherRegionId:6},
+  {id:"spot_1776413906638",name:"3-я насосная",lat:43.9015,lng:77.5025,waterType:"reservoir",fish:["плотва","карась","лещ","карп","судак"],notes:"",createdAt:1776413906638,weatherStationId:148,weatherRegionId:6},
+  {id:"spot_1776413924787",name:"4-я насосная",lat:43.8911,lng:77.5703,waterType:"reservoir",fish:["плотва","карась","лещ","карп","судак"],notes:"",createdAt:1776413924787,weatherStationId:148,weatherRegionId:6},
+  {id:"spot_1776413940112",name:"5-я насосная",lat:43.8697,lng:77.6492,waterType:"reservoir",fish:["плотва","карась","лещ","карп","судак"],notes:"",createdAt:1776413940112,weatherStationId:351,weatherRegionId:6},
+  {id:"spot_1776413961553",name:"6-я насосная",lat:43.856,lng:77.7146,waterType:"reservoir",fish:["плотва","карась","лещ","карп","судак"],notes:"",createdAt:1776413961553,weatherStationId:351,weatherRegionId:6},
+  {id:"spot_1776413979126",name:"7-я насосная",lat:43.8444,lng:77.7738,waterType:"reservoir",fish:["плотва","карась","лещ","карп","судак"],notes:"",createdAt:1776413979126,weatherStationId:351,weatherRegionId:6},
+  {id:"spot_1776414004144",name:"8-я насосная",lat:43.8397,lng:77.8283,waterType:"reservoir",fish:["плотва","карась","лещ","карп","судак"],notes:"",createdAt:1776414004144,weatherStationId:351,weatherRegionId:6},
+  {id:"spot_1776414025830",name:"9-я насосная",lat:43.842,lng:77.8551,waterType:"reservoir",fish:["плотва","карась","лещ","карп","судак"],notes:"",createdAt:1776414025830,weatherStationId:351,weatherRegionId:6},
+  {id:"spot_1776599207399",name:"Озеро у Бекши",lat:43.4622,lng:76.9744,waterType:"artificial_lake",fish:["плотва","карась","карп","судак"],notes:"",createdAt:1776599207399,weatherStationId:931,weatherRegionId:6},
+  {id:"spot_1776599271653",name:"Карьер Арна",lat:43.7718,lng:77.0896,waterType:"quarry",fish:["плотва","карась","лещ","карп","судак"],notes:"",createdAt:1776599271653,weatherStationId:147,weatherRegionId:6}
 ];
 
 const ДЕФОЛТ_РЫБЫ = {
