@@ -25,6 +25,10 @@ echo Creating commit...
 git commit -m "Update %date% %time:~0,5%"
 
 echo.
+echo Syncing with GitHub...
+git pull --rebase
+
+echo.
 echo Pushing to GitHub...
 git push
 
