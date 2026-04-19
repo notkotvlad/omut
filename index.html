@@ -415,16 +415,140 @@
       transition: opacity 0.3s;
     }
 
-    @media (max-width: 1024px) {
+    /* ── Мобильный навбар ── */
+    #мобил-навбар {
+      display: none;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 56px;
+      background: var(--bg-panel);
+      border-top: 1px solid var(--border-md);
+      z-index: 3000;
+    }
+    .мобил-таб {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-3);
+      font-size: 11px;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      transition: color 0.15s;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .мобил-таб-ик { font-size: 20px; line-height: 1; }
+    .мобил-таб.active { color: var(--green); }
+
+    /* ── Планшет (768–1024px) ── */
+    @media (max-width: 1024px) and (min-width: 768px) {
       #app { flex-direction: column; }
       #панель { width: 100%; }
       #карта-обёртка { flex: none; height: 40vh; }
       #рыба-табы { top: auto; bottom: 14px; left: 14px; right: 14px; max-width: none; justify-content: flex-start; }
       #снимок-дата { bottom: 48px; }
     }
-    @media (max-width: 480px) {
-      #рыба-табы { padding: 5px 7px; gap: 4px; }
-      .рыба-таб { padding: 4px 9px; font-size: 11px; }
+
+    /* ── Мобильные устройства (≤ 767px) ── */
+    @media (max-width: 767px) {
+      #мобил-навбар { display: flex; }
+
+      html, body { overflow: hidden; }
+
+      #app {
+        flex-direction: column;
+        padding: 0;
+        gap: 0;
+        height: calc(100vh - 56px);
+        height: calc(100dvh - 56px);
+      }
+
+      #карта-обёртка {
+        flex: 1;
+        border-radius: 0;
+        height: 100%;
+        min-height: 0;
+      }
+
+      /* Панель скрыта на карте, показывается через JS */
+      #панель {
+        display: none;
+        width: 100%;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
+        height: 100%;
+      }
+      #панель.мобил-показан { display: flex; }
+
+      /* Шапка панели */
+      #шапка-панели { padding: 10px 14px; flex-shrink: 0; }
+
+      /* Скролл-область */
+      #панель-скролл { padding: 10px; }
+
+      /* Карточки */
+      .карточка { padding: 14px; margin-bottom: 10px; }
+
+      /* FAB */
+      #fab-добавить { top: 10px; left: 10px; padding: 8px 12px; font-size: 12px; }
+
+      /* Рыба-табы: поднять чуть выше нижней панели */
+      #рыба-табы {
+        top: auto;
+        bottom: 10px;
+        left: 8px; right: 8px;
+        max-width: none;
+        justify-content: flex-start;
+      }
+
+      /* Дата снимка */
+      #снимок-дата { bottom: 48px; }
+
+      /* ── Погода 7 дней ── */
+      .неделя-сетка { gap: 2px; }
+      .день-кол { padding: 6px 2px 4px; min-height: 78px; gap: 3px; }
+      .день-нзв { font-size: 9px; }
+      .день-ик  { font-size: 15px; }
+      .день-мкс { font-size: 11px; }
+      .день-мин { font-size: 10px; }
+      .день-ос  { font-size: 9px; }
+
+      /* ── Давление ── */
+      .давл-число { font-size: 26px; }
+      .давл-тело  { gap: 10px; }
+
+      /* ── Ветер ── */
+      .ветер-скорость { font-size: 26px; }
+
+      /* ── Лучший день ── */
+      .лд-стр { padding: 6px 8px; }
+
+      /* ── Модалки (снизу листом) ── */
+      .модал-оверлей { padding: 0; align-items: flex-end; }
+      .модал-карточка {
+        max-width: 100% \!important;
+        max-height: 90vh \!important;
+        border-radius: 16px 16px 0 0 \!important;
+      }
+      .нас-вкладки { overflow-x: auto; scrollbar-width: none; }
+      .нас-вкладки::-webkit-scrollbar { display: none; }
+    }
+
+    /* ── Очень маленькие экраны (≤ 380px) ── */
+    @media (max-width: 380px) {
+      .день-мин, .день-ос { display: none; }
+      .день-кол { min-height: 64px; }
+      .день-нзв { font-size: 8px; }
+      .день-ик  { font-size: 13px; }
+      .день-мкс { font-size: 10px; }
+      #рыба-табы { padding: 4px 6px; gap: 3px; }
+      .рыба-таб  { padding: 4px 8px; font-size: 11px; }
     }
 
     /* ── Рыба-табы на карте ── */
@@ -1875,6 +1999,8 @@ function выбратьМесто(spot) {
   отрисоватьВетер();
   отрисоватьГидрологию();
   отрисоватьЛучшийДень();
+  // На мобилке автоматически переходим на вкладку прогноза
+  if (window.innerWidth <= 767) мобилПереключить('прогноз');
 }
 
 // ============ ОТРИСОВКА КАРТОЧКИ МЕСТА ============
@@ -2499,7 +2625,37 @@ function инициализировать() {
   обновитьДатуСнимка();
 }
 
+// ============ МОБИЛЬНАЯ НАВИГАЦИЯ ============
+function мобилПереключить(вид) {
+  const картаОберт = document.getElementById('карта-обёртка');
+  const панель = document.getElementById('панель');
+  const табКарта = document.getElementById('мобил-таб-карта');
+  const табПрогноз = document.getElementById('мобил-таб-прогноз');
+  if (вид === 'карта') {
+    панель.classList.remove('мобил-показан');
+    картаОберт.style.display = '';
+    табКарта.classList.add('active');
+    табПрогноз.classList.remove('active');
+    setTimeout(() => карта && карта.invalidateSize(), 150);
+  } else {
+    картаОберт.style.display = 'none';
+    панель.classList.add('мобил-показан');
+    табКарта.classList.remove('active');
+    табПрогноз.classList.add('active');
+  }
+}
+
 инициализировать();
   </script>
+  <nav id="мобил-навбар">
+    <button id="мобил-таб-карта" class="мобил-таб active" onclick="мобилПереключить('карта')">
+      <span class="мобил-таб-ик">🗺</span>
+      <span>Карта</span>
+    </button>
+    <button id="мобил-таб-прогноз" class="мобил-таб" onclick="мобилПереключить('прогноз')">
+      <span class="мобил-таб-ик">📊</span>
+      <span>Прогноз</span>
+    </button>
+  </nav>
 </body>
 </html>
