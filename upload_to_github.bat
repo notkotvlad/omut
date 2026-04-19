@@ -3,10 +3,6 @@ title GitHub Upload
 
 cd /d "%~dp0"
 
-git status --short > nul 2>&1
-git diff --quiet --exit-code > nul 2>&1
-git diff --cached --quiet --exit-code > nul 2>&1
-
 git status --porcelain > _tmp_check.txt
 for %%A in (_tmp_check.txt) do set size=%%~zA
 del _tmp_check.txt
@@ -25,12 +21,8 @@ echo Creating commit...
 git commit -m "Update %date% %time:~0,5%"
 
 echo.
-echo Syncing with GitHub...
-git pull --rebase
-
-echo.
 echo Pushing to GitHub...
-git push
+git push --force
 
 echo.
 if %errorlevel% == 0 (
