@@ -1,0 +1,21 @@
+{
+  "name": "omut-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker proxy: Казгидромет + ecodata.kz (гидропосты) + OGIMET для сервиса Omut",
+  "main": "src/worker.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "kv:create": "wrangler kv namespace create OMUT_CACHE && wrangler kv namespace create OMUT_CACHE --preview",
+    "test:syntax": "node --check src/worker.js"
+  },
+  "devDependencies": {
+    "wrangler": "^3.80.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

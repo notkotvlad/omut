@@ -1,0 +1,35 @@
+name = "omut-worker"
+main = "src/worker.js"
+compatibility_date = "2025-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Publishing to *.workers.dev is the fastest way to get a public HTTPS endpoint
+# without a custom domain. Rename account_id once you deploy.
+# workers_dev = true
+
+# Custom route (uncomment and edit once you have a domain attached to Cloudflare)
+# routes = [
+#   { pattern = "api.omut.example.com/*", zone_name = "omut.example.com" }
+# ]
+
+# KV-кеш для ответов от Казгидромета / ecodata / OGIMET
+[[kv_namespaces]]
+binding = "OMUT_CACHE"
+id = "891f7ad560724b8c89d16dc45744f7ed"
+# preview_id нужен только для `wrangler dev --remote`
+preview_id = "1e9fa0f1c10f4098b44e47ea3942b335"
+
+[vars]
+# Контактный e-mail подставляется в User-Agent при скрейпе (см. брифинг: серая зона)
+CONTACT_EMAIL = "not.kot.vlad@gmail.com"
+# Если станет нужно полностью отключить скрейп Казгидромета — поставьте "1"
+DISABLE_KAZHYDROMET = "0"
+# Разрешённые origin для CORS (через запятую). "*" — любой.
+ALLOWED_ORIGINS = "*"
+
+# Ограничения на использование воркера:
+# На бесплатном тарифе CPU-лимит фиксирован (10 мс) и менять его нельзя,
+# поэтому блок [limits] не задаётся. Если перейдёшь на Paid-тариф ($5/мес),
+# можно добавить:
+#   [limits]
+#   cpu_ms = 50
