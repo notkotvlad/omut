@@ -21,6 +21,7 @@ import { fetchHydroFromKV } from './lib/ecodata-hydro.js';
 import { fetchSynop } from './lib/ogimet.js';
 import { buildResponse } from './lib/normalizer.js';
 import { discoverStations } from './lib/kazhydromet-stations.js';
+import { runHydroCollection } from './lib/shiny-hydro-cron.js';
 
 const TTL = {
   nowcast: 30 * 60,     // 30 минут
@@ -130,6 +131,12 @@ export default {
     } catch (err) {
       return errorResponse('INTERNAL', err.message || 'internal error', { env, req: request });
     }
+  },
+
+  // Cron Trigger: сбор данных гидропостов с ecodata.kz:3838 через SockJS.
+  // Расписание задаётся в wrangler.toml → [triggers] crons.
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(runHydroCollection(env));
   },
 };
 

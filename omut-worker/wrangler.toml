@@ -19,6 +19,11 @@ id = "891f7ad560724b8c89d16dc45744f7ed"
 # preview_id нужен только для `wrangler dev --remote`
 preview_id = "1e9fa0f1c10f4098b44e47ea3942b335"
 
+# Cron Trigger: сбор данных гидропостов дважды в сутки
+# 01:00 UTC = 06:00 Almaty, 13:00 UTC = 18:00 Almaty
+[triggers]
+crons = ["0 1 * * *", "0 13 * * *"]
+
 [vars]
 # Контактный e-mail подставляется в User-Agent при скрейпе (см. брифинг: серая зона)
 CONTACT_EMAIL = "not.kot.vlad@gmail.com"
