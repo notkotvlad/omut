@@ -61,7 +61,7 @@ async function collectFromShiny() {
     await page.setUserAgent('OmutHydroCollect/2.0 (+not.kot.vlad@gmail.com)');
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'ru,en;q=0.8' });
 
-    await page.goto(HYDRO_MAP_URL, { waitUntil: 'networkidle2', timeout: 60_000 });
+    await page.goto(HYDRO_MAP_URL, { waitUntil: 'load', timeout: 60_000 });
 
     // Ждём пока Shiny загрузит карту и вызовет addAwesomeMarkers
     log('Ждём загрузки Shiny-карты...');
@@ -202,3 +202,4 @@ async function main() {
 }
 
 main().catch(e => { console.error('[hydro-collect] FATAL:', e); process.exit(1); });
+        
