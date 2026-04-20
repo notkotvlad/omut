@@ -582,10 +582,12 @@
     .ветер-бар { width: 100%; border-radius: 3px 3px 0 0; min-height: 3px; }
     .ветер-бар-стрел { font-size: 9px; line-height: 1; flex-shrink: 0; }
     /* ── Столбчатый график давления ── */
-    .давл-бары { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; align-items: end; height: 56px; margin-bottom: 4px; }
+    .давл-бары { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; align-items: end; height: 56px; margin-bottom: 4px; position: relative; }
     .давл-бар-кол { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 1px; }
     .давл-бар { width: 100%; border-radius: 3px 3px 0 0; min-height: 3px; opacity: 0.85; }
     .давл-бар-знач { font-size: 7.5px; font-weight: 600; line-height: 1; flex-shrink: 0; }
+    .давл-норм-линия { position: absolute; left: 0; right: 0; height: 0; border-top: 1.5px dashed var(--text-3); pointer-events: none; z-index: 2; }
+    .давл-норм-метка { position: absolute; right: 0; font-size: 7px; color: var(--text-3); font-weight: 600; line-height: 1; white-space: nowrap; transform: translateY(-100%); padding-bottom: 1px; }
     .ветер-7дней-нзв { display: flex; }
     .ветер-7дней-нзв span { font-size: 9px; color: var(--text-3); text-align: center; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; }
     .ветер-7дней-метка { display: flex; justify-content: space-between; margin-top: 3px; }
@@ -797,6 +799,50 @@ const ДЕФОЛТ_ТИПЫ_ВОДОЁМОВ = {
 
 function загрузитьМеста() { return JSON.parse(localStorage.getItem('kaz_spots') || 'null'); }
 function сохранитьМеста(d) { localStorage.setItem('kaz_spots', JSON.stringify(d)); }
+
+// ============ ВЫСОТА И НОРМАЛЬНОЕ ДАВЛЕНИЕ ============
+// Стандартная барометрическая формула (формула Стивенсона)
+// P(h) = 760 * (1 - 2.2558e-5 * h)^5.2558  [мм рт.ст.]
+function нормДавлДляВысоты(высотаМ) {
+  if (высотаМ == null || isNaN(высотаМ)) return null;
+  return Math.round(760 * Math.pow(1 - 2.2558e-5 * высотаМ, 5.2558));
+}
+
+function кешВысотыПрочитать(lat, lng) {
+  try {
+    const кеш = JSON.parse(localStorage.getItem('kaz_elevation_cache') || '{}');
+    const ключ = `${lat.toFixed(3)}_${lng.toFixed(3)}`;
+    const зап = кеш[ключ];
+    if (зап != null) return зап;
+  } catch {}
+  return null;
+}
+
+function кешВысотыЗаписать(lat, lng, высота) {
+  try {
+    const кеш = JSON.parse(localStorage.getItem('kaz_elevation_cache') || '{}');
+    const ключ = `${lat.toFixed(3)}_${lng.toFixed(3)}`;
+    кеш[ключ] = высота;
+    localStorage.setItem('kaz_elevation_cache', JSON.stringify(кеш));
+  } catch {}
+}
+
+async function загрузитьВысоту(spot) {
+  if (!spot?.lat || !spot?.lng) return;
+  if (кешВысотыПрочитать(spot.lat, spot.lng) != null) return; // уже есть
+  try {
+    const resp = await fetch(
+      `https://api.open-elevation.com/api/v1/lookup?locations=${spot.lat.toFixed(4)},${spot.lng.toFixed(4)}`
+    );
+    const д = await resp.json();
+    const высота = д?.results?.[0]?.elevation;
+    if (высота != null) {
+      кешВысотыЗаписать(spot.lat, spot.lng, высота);
+      // Перерисовать график давления, если этот спот выбран
+      if (выбМесто?.id === spot.id) отрисоватьДавление();
+    }
+  } catch {}
+}
 function загрузитьРыбДанные() { return JSON.parse(localStorage.getItem('kaz_fish_data') || 'null'); }
 function сохранитьРыбДанные(d) { localStorage.setItem('kaz_fish_data', JSON.stringify(d)); }
 function загрузитьТипыВодоёмов() { return JSON.parse(localStorage.getItem('kaz_watertype_data') || 'null'); }
@@ -1999,6 +2045,7 @@ function обновитьМаркеры() {
 // ============ ВЫБОР МЕСТА ============
 function выбратьМесто(spot) {
   выбМесто = spot;
+  загрузитьВысоту(spot); // фоновая загрузка высоты для нормы давления
   обновитьМаркеры();
   отрисоватьКарточкуМеста();
   отрисоватьПрогноз();
@@ -2151,30 +2198,53 @@ function отрисоватьДавление() {
     `);
     return;
   }
-  const п     = кеш[выбМесто.id];
+  const п        = кеш[выбМесто.id];
   const ГПА_В_ММ = 0.75006;
-  const давлМм = Math.round(п.давление * ГПА_В_ММ);
-  const тренд = п.трендДавл;
+
+  // --- Высота точки и коэффициент конвертации MSL → станционное давление ---
+  // Все API отдают давление приведённое к уровню моря (MSL). Рыба чувствует
+  // реальное давление на своей высоте, поэтому умножаем на коэффициент.
+  // коэфВысоты = P_станция / P_MSL = нормМм_локал / 760
+  const высотаМ  = выбМесто ? кешВысотыПрочитать(выбМесто.lat, выбМесто.lng) : null;
+  const нормМм   = нормДавлДляВысоты(высотаМ) ?? 760;  // 760 если высота ещё не загружена
+  const коэф     = нормМм / 760;                        // ≈ 0.91 для Алматы ~900м
+
+  // Конвертируем текущее давление
+  const давлМм   = Math.round(п.давление * ГПА_В_ММ * коэф);
+  const тренд    = п.трендДавл;
   const ДАВЛ_СИМВ = { стабильное:'→', падает:'↓', резко_падает:'↓↓', растёт:'↑', резко_растёт:'↑↑' };
   const ДАВЛ_НАЗВ = { стабильное:'стабильное', падает:'падает', резко_падает:'резко падает', растёт:'растёт', резко_растёт:'резко растёт' };
+
+  // Цветовые пороги относительно локальной нормы (±6 мм)
+  const цветДавл = (мм) =>
+    мм < нормМм - 6 ? 'var(--red)'    :
+    мм < нормМм     ? 'var(--yellow)' :
+    мм < нормМм + 6 ? 'var(--green)'  : 'var(--blue)';
   const давлЦвет = тренд === 'резко_падает' ? 'var(--red)' :
                    тренд === 'падает'        ? 'var(--yellow)' :
                    тренд === 'стабильное'    ? 'var(--green)' : 'var(--blue)';
 
-  // SVG-гауге 720–780 мм рт.ст. (≈ 960–1040 гПа)
-  const пцт = Math.max(0.01, Math.min(0.99, (давлМм - 720) / 60));
+  // SVG-гауге: шкала нормМм±30 (раньше всегда 720–780)
+  const гаужМин = нормМм - 30;
+  const гаужМакс = нормМм + 30;
+  const пцт = Math.max(0.01, Math.min(0.99, (давлМм - гаужМин) / (гаужМакс - гаужМин)));
   const cx=80, cy=72, r=54;
   const θ = (1 - пцт) * Math.PI;
   const xV = (cx + r * Math.cos(θ)).toFixed(1);
   const yV = (cy - r * Math.sin(θ)).toFixed(1);
 
-  const отНормы = давлМм - 760;
-  const давлИзмМм = п.давлИзм != null ? Math.round(п.давлИзм * ГПА_В_ММ * 10) / 10 : null;
-  const измТекст = давлИзмМм != null
+  const отНормы    = давлМм - нормМм;
+  const давлИзмМм  = п.давлИзм != null ? Math.round(п.давлИзм * ГПА_В_ММ * коэф * 10) / 10 : null;
+  const измТекст   = давлИзмМм != null
     ? (давлИзмМм >= 0 ? `+${давлИзмМм}` : `${давлИзмМм}`) + ' мм за 24ч'
     : (Math.abs(отНормы) < 2 ? 'норма' : `${отНормы>0?'+':''}${отНормы} от нормы`);
 
-  // 7-дневный линейный график давления
+  // Подсказка об источнике данных в гауже
+  const высотаПодп = высотаМ != null
+    ? `<title>Реальное давление на высоте ${Math.round(высотаМ)} м н.у.м. Норма: ${нормМм} мм</title>`
+    : '';
+
+  // 7-дневный столбчатый график
   let график7Дней = '';
   if (п.часВремя && п.часДавл) {
     const сегодняСтр = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Almaty' }).format(new Date());
@@ -2193,31 +2263,45 @@ function отрисоватьДавление() {
       });
       const валидные = средние.filter(v => v != null);
       if (валидные.length >= 2) {
-        const мин = Math.min(...валидные);
-        const макс = Math.max(...валидные);
-        const диап = макс - мин || 1;
+        // Конвертируем средние значения в реальное давление на высоте
+        const миниМм = Math.min(...валидные) * ГПА_В_ММ * коэф;
+        const максиМм = Math.max(...валидные) * ГПА_В_ММ * коэф;
+        const диапМм  = максиМм - миниМм || 1;
         const нзвДней = дни7.map(д => {
           const дата = new Date(д + 'T12:00:00+05:00');
           return { нзв: ДНИРУ[дата.getDay()], числоМес: `${дата.getDate()}.${String(дата.getMonth()+1).padStart(2,'0')}` };
         });
-        const миниМм = мин * ГПА_В_ММ;
-        const максиМм = макс * ГПА_В_ММ;
-        const диапМм = максиМм - миниМм || 1;
-        const бары = средние.map((v, j) => {
+        const бары = средние.map((v) => {
           if (v == null) return `<div class="давл-бар-кол"><span class="давл-бар-знач" style="color:var(--text-3)">—</span><div class="давл-бар" style="height:4px;background:var(--border-md)"></div></div>`;
-          const valМм = Math.round(v * ГПА_В_ММ);
-          const высота = Math.max(6, Math.round(((v * ГПА_В_ММ - миниМм) / диапМм) * 40) + 8);
-          const цв = valМм < 754 ? 'var(--red)' : valМм < 760 ? 'var(--yellow)' : valМм < 766 ? 'var(--green)' : 'var(--blue)';
+          const valМм  = Math.round(v * ГПА_В_ММ * коэф);
+          const высота = Math.max(6, Math.round(((valМм - миниМм) / диапМм) * 40) + 8);
+          const цв     = цветДавл(valМм);
           return `<div class="давл-бар-кол">
             <span class="давл-бар-знач" style="color:${цв}">${valМм}</span>
             <div class="давл-бар" style="height:${высота}px;background:${цв}"></div>
           </div>`;
         }).join('');
+
+        // Пунктирная линия нормы: всегда показываем если высота известна
+        let линияНормы = '';
+        if (высотаМ != null) {
+          const позBottom = Math.round(((нормМм - миниМм) / диапМм) * 40) + 8;
+          if (позBottom >= 1 && позBottom <= 55) {
+            линияНормы = `<div class="давл-норм-линия" style="bottom:${позBottom}px">
+              <span class="давл-норм-метка">${нормМм} норма</span>
+            </div>`;
+          }
+        }
+
+        const меткаВысота = высотаМ != null
+          ? `<span>${Math.round(высотаМ)} м н.у.м.</span>`
+          : `<span style="visibility:hidden">·</span>`;
+
         график7Дней = `
           <div class="давл-7дней">
-            <div class="давл-бары">${бары}</div>
+            <div class="давл-бары">${бары}${линияНормы}</div>
             <div class="давл-7дней-нзв">${нзвДней.map((н, i) => `<span style="${i===0 ? 'color:var(--green);font-weight:700' : ''}"><span>${н.нзв}</span><span style="color:var(--text-3);font-weight:400">${н.числоМес}</span></span>`).join('')}</div>
-            <div class="давл-7дней-метка"><span style="visibility:hidden">·</span><span>прогноз 7 дней, мм рт.ст.</span><span style="visibility:hidden">·</span></div>
+            <div class="давл-7дней-метка">${меткаВысота}<span>прогноз 7 дней, мм рт.ст.</span><span style="visibility:hidden">·</span></div>
           </div>`;
       }
     }
@@ -2226,13 +2310,14 @@ function отрисоватьДавление() {
   показатьСАнимацией(эл, `
     <div style="display:flex;align-items:center;gap:16px">
       <svg viewBox="0 0 160 88" width="130" height="70">
+        ${высотаПодп}
         <path d="M ${cx-r} ${cy} A ${r} ${r} 0 0 1 ${cx+r} ${cy}"
               fill="none" stroke="var(--bg-page)" stroke-width="8" stroke-linecap="round"/>
         <path d="M ${cx-r} ${cy} A ${r} ${r} 0 0 1 ${xV} ${yV}"
               fill="none" stroke="${давлЦвет}" stroke-width="8" stroke-linecap="round"/>
-        <text x="${cx-r}" y="${cy+14}" fill="var(--text-3)" font-size="9" font-family="Inter,sans-serif" text-anchor="middle">720</text>
-        <text x="${cx}"   y="12"       fill="var(--text-3)" font-size="9" font-family="Inter,sans-serif" text-anchor="middle">760</text>
-        <text x="${cx+r}" y="${cy+14}" fill="var(--text-3)" font-size="9" font-family="Inter,sans-serif" text-anchor="middle">780</text>
+        <text x="${cx-r}" y="${cy+14}" fill="var(--text-3)" font-size="9" font-family="Inter,sans-serif" text-anchor="middle">${гаужМин}</text>
+        <text x="${cx}"   y="12"       fill="var(--text-3)" font-size="9" font-family="Inter,sans-serif" text-anchor="middle">${нормМм}</text>
+        <text x="${cx+r}" y="${cy+14}" fill="var(--text-3)" font-size="9" font-family="Inter,sans-serif" text-anchor="middle">${гаужМакс}</text>
         <text x="${cx}" y="${cy-6}"  fill="var(--text-1)"  font-size="22" font-weight="800" font-family="Inter,sans-serif" text-anchor="middle">${давлМм}</text>
         <text x="${cx}" y="${cy+10}" fill="${давлЦвет}" font-size="11" font-family="Inter,sans-serif" text-anchor="middle">мм</text>
       </svg>

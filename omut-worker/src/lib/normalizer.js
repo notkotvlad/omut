@@ -49,7 +49,10 @@ function chooseCurrent({ facts, synop }) {
       temp_air: l.temp_air ?? null,
       wind_ms: l.wind_ms ?? null,
       wind_deg: l.wind_deg ?? null,
-      pressure_hpa: l.pressure_msl_hpa ?? l.pressure_station_hpa ?? null,
+      // Предпочитаем давление на уровне станции (реальное) — клиент сам знает высоту точки.
+      // pressure_msl_hpa оставляем как запасной вариант если станционного нет.
+      pressure_hpa: l.pressure_station_hpa ?? l.pressure_msl_hpa ?? null,
+      pressure_is_station: l.pressure_station_hpa != null, // признак: true = уже станционное давление
       precip_mm: l.precip_mm ?? null,
       obs_time: l.observed_at,
       source: 'ogimet',
