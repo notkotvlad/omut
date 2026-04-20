@@ -46,8 +46,11 @@ export default {
           time: new Date().toISOString(),
           endpoints: [
             '/api/v1/weather?lat=...&lng=...',
+            '/api/v1/weather?lat=...&lng=...&hydropost_id=<post_id>',
             '/api/v1/stations',
             '/api/v1/hydroposts',
+            '/api/v1/hydro/snapshot?post_id=<post_id>',
+            '/api/v1/hydro/history?post_id=<post_id>',
             '/health',
           ],
           kazhydromet_disabled: env.DISABLE_KAZHYDROMET === '1',
@@ -70,6 +73,42 @@ export default {
 
       if (url.pathname === '/api/v1/weather') {
         return await handleWeather(url, env, ctx, request);
+      }
+
+      // История уровня воды для конкретного гидропоста (для алгоритма прогнозов)
+      // GET /api/v1/hydro/history?post_id=kapchagai-vdhr-kapshagai
+      if (url.pathname === '/api/v1/hydro/history') {
+        const postId = url.searchParams.get('post_id');
+        if (!postId) {
+          return errorResponse('BAD_REQUEST', 'post_id обязателен', { status: 400, env, req: request });
+        }
+        const post = hydropostsData.hydroposts.find(h => h.post_id === postId);
+        if (!post) {
+          return errorResponse('NOT_FOUND', `Гидропост '${postId}' не найден в справочнике`, { status: 404, env, req: request });
+        }
+        const history = env.OMUT_CACHE
+          ? await env.OMUT_CACHE.get(`hydro:level-history:${postId}`, 'json').catch(() => null)
+          : null;
+        return jsonResponse(
+          { ok: true, post_id: postId, post_name: post.name, history: history || [] },
+          { env, req: request, cacheControl: 'public, max-age=600' },
+        );
+      }
+
+      // Снапшот (текущие данные) гидропоста
+      // GET /api/v1/hydro/snapshot?post_id=kapchagai-vdhr-kapshagai
+      if (url.pathname === '/api/v1/hydro/snapshot') {
+        const postId = url.searchParams.get('post_id');
+        if (!postId) {
+          return errorResponse('BAD_REQUEST', 'post_id обязателен', { status: 400, env, req: request });
+        }
+        const snapshot = env.OMUT_CACHE
+          ? await env.OMUT_CACHE.get(`hydro:snapshot:${postId}`, 'json').catch(() => null)
+          : null;
+        return jsonResponse(
+          { ok: true, post_id: postId, snapshot: snapshot || null },
+          { env, req: request, cacheControl: 'public, max-age=300' },
+        );
       }
 
       if (url.pathname === '/api/v1/admin/discover-stations') {
@@ -155,7 +194,23 @@ async function handleWeather(url, env, ctx, request) {
     stationHit = nearest(lat, lng, verifiedStations) || nearest(lat, lng, allStations);
   }
 
-  const hydroHit = nearest(lat, lng, hydropostsData.hydroposts, { maxKm: 150 });
+  // Явное указание гидропоста: ?hydropost_id=<post_id>
+  // Если указан — тянем реальные данные (water_temp + water_level) из KV.
+  // Если НЕ указан — авто-nearest используется только для показа ближайшего поста
+  // в ответе, но данные о температуре воды НЕ подгружаются (старая логика).
+  const pinnedHydropostId = url.searchParams.get('hydropost_id') || null;
+  const pinnedHydropost = pinnedHydropostId
+    ? (hydropostsData.hydroposts.find(h => h.post_id === pinnedHydropostId) || null)
+    : null;
+
+  // Ближайший пост — только для информационного поля в ответе (name, distance)
+  const autoHydroHit = nearest(lat, lng, hydropostsData.hydroposts, { maxKm: 150 });
+
+  // Какой пост реально используется: явный или авто (для location-поля)
+  const activeHydroHit = pinnedHydropost
+    ? { item: pinnedHydropost, distanceKm: null }
+    : autoHydroHit;
+
   const synopHit = nearest(lat, lng, stationsData.synop_fallback?.stations || []);
 
   const location = {
@@ -165,9 +220,10 @@ async function handleWeather(url, env, ctx, request) {
     station_region_id: stationHit?.item?.region_id ?? null,
     station_distance_km: stationHit?.distanceKm != null ? round1(stationHit.distanceKm) : null,
     station_pinned: pinnedStation != null,
-    hydropost: hydroHit?.item?.name || null,
-    hydropost_id: hydroHit?.item?.post_id || null,
-    hydropost_distance_km: hydroHit ? round1(hydroHit.distanceKm) : null,
+    hydropost: activeHydroHit?.item?.name || null,
+    hydropost_id: activeHydroHit?.item?.post_id || null,
+    hydropost_distance_km: activeHydroHit?.distanceKm != null ? round1(activeHydroHit.distanceKm) : null,
+    hydropost_pinned: pinnedHydropost != null,
     synop_wmo: synopHit?.item?.wmo || null,
   };
 
@@ -201,8 +257,11 @@ async function handleWeather(url, env, ctx, request) {
       ).catch(async err => ({ error: err.message, fallback: await stale(kv, PREFIX.nowcast + `${location.station_region_id}:${location.station_id}`) }))
     : Promise.resolve(null);
 
-  const hydroP = hydroHit
-    ? fetchHydroFromKV(kv, hydroHit.item.post_id).catch(() => null)
+  // Данные из KV тянем ТОЛЬКО для явно указанного поста.
+  // При авто-nearest данные не загружаем — чтобы не показывать температуру воды
+  // чужого водоёма как «текущую» для запрашиваемой точки.
+  const hydroP = pinnedHydropost
+    ? fetchHydroFromKV(kv, pinnedHydropost.post_id).catch(() => null)
     : Promise.resolve(null);
 
   const synopP = synopHit

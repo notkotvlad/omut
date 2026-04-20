@@ -1,0 +1,17 @@
+{
+  "name": "omut-hydro-collector",
+  "version": "1.0.0",
+  "description": "Сборщик данных гидропостов Казгидромета → Cloudflare KV",
+  "type": "module",
+  "scripts": {
+    "collect": "node collect-hydro.js",
+    "collect:dry": "DRY_RUN=1 node collect-hydro.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "puppeteer": "^22.8.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
