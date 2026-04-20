@@ -61,7 +61,14 @@ async function collectFromShiny() {
     await page.setUserAgent('OmutHydroCollect/2.0 (+not.kot.vlad@gmail.com)');
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'ru,en;q=0.8' });
 
-    await page.goto(HYDRO_MAP_URL, { waitUntil: 'load', timeout: 60_000 });
+    // Shiny держит постоянный SockJS/WebSocket — waitUntil никогда не сработает.
+    // Просто открываем страницу и игнорируем таймаут навигации;
+    // реальное ожидание данных — ниже, в waitForFunction.
+    try {
+      await page.goto(HYDRO_MAP_URL, { waitUntil: 'domcontentloaded', timeout: 90_000 });
+    } catch (e) {
+      warn(`page.goto: ${e.message} — продолжаем, ждём Shiny через waitForFunction`);
+    }
 
     // Ждём пока Shiny загрузит карту и вызовет addAwesomeMarkers
     log('Ждём загрузки Shiny-карты...');
